@@ -1,0 +1,178 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "aws-cost-explorer"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "filter": {},
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": [],
+          "metric": "UnblendedCost",
+          "refId": "A",
+          "version": 1
+        }
+      ],
+      "title": "Total AWS cost over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "aws-cost-explorer"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "filter": {},
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": ["SERVICE"],
+          "metric": "UnblendedCost",
+          "refId": "A",
+          "version": 1
+        }
+      ],
+      "title": "Cost by AWS service",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "aws-cost-explorer"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "filter": {},
+          "format": "table",
+          "granularity": "DAILY",
+          "groupBy": ["LINKED_ACCOUNT"],
+          "metric": "UnblendedCost",
+          "refId": "A",
+          "version": 1
+        }
+      ],
+      "title": "Cost by linked account",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "aws-cost-explorer"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "filter": {},
+          "format": "table",
+          "granularity": "MONTHLY",
+          "groupBy": [],
+          "metric": "AmortizedCost",
+          "refId": "A",
+          "version": 1
+        }
+      ],
+      "title": "Monthly amortized cost",
+      "type": "table"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 42,
+  "tags": ["aws", "cost-explorer", "finops"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "AWS Cost Explorer overview",
+  "uid": "aws-cost-explorer-overview",
+  "version": 1
+}

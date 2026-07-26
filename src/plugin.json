@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "datasource",
+  "name": "AWS Cost Explorer",
+  "id": "ivlabsdev-awscostexplorer-datasource",
+  "metrics": true,
+  "backend": true,
+  "state": "alpha",
+  "executable": "gpx_aws_cost_explorer",
+  "info": {
+    "description": "Query AWS Cost Explorer directly with a visual query editor and server-side caching.",
+    "author": {
+      "name": "ivlabs-dev",
+      "url": "https://github.com/ivlabs-dev"
+    },
+    "keywords": ["aws", "cost-explorer", "finops", "datasource"],
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [
+      {
+        "name": "Repository",
+        "url": "https://github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource"
+      }
+    ],
+    "screenshots": [],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=12.3.0",
+    "plugins": []
+  }
+}

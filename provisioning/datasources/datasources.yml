@@ -1,0 +1,16 @@
+apiVersion: 1
+
+datasources:
+  - name: 'AWS Cost Explorer'
+    uid: 'aws-cost-explorer'
+    type: 'ivlabsdev-awscostexplorer-datasource'
+    access: proxy
+    isDefault: false
+    orgId: 1
+    version: 1
+    editable: true
+    jsonData:
+      authMode: 'default'
+      region: 'us-east-1'
+      cacheTTLSeconds: 900
+      cacheMaxEntries: 256
