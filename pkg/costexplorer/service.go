@@ -40,7 +40,7 @@ type cachedResponse struct {
 
 func NewService(client awsclient.CostExplorerAPI, resultCache cache.Cache) (*Service, error) {
 	if client == nil {
-		return nil, fmt.Errorf("Cost Explorer client must not be nil")
+		return nil, fmt.Errorf("client for AWS Cost Explorer must not be nil")
 	}
 	if resultCache == nil {
 		return nil, fmt.Errorf("cache must not be nil")
@@ -84,7 +84,7 @@ func (s *Service) Execute(
 
 	cached, ok := value.(*cachedResponse)
 	if !ok || cached == nil || cached.Output == nil {
-		return nil, fmt.Errorf("cache returned an invalid Cost Explorer response")
+		return nil, fmt.Errorf("cache returned an invalid AWS Cost Explorer response")
 	}
 
 	return &Execution{
@@ -97,7 +97,7 @@ func (s *Service) Execute(
 
 func BuildInput(query models.Query, dateRange models.DateRange) (*awscostexplorer.GetCostAndUsageInput, error) {
 	if dateRange.Start == "" || dateRange.End == "" {
-		return nil, fmt.Errorf("Cost Explorer date range must include start and end dates")
+		return nil, fmt.Errorf("date range for AWS Cost Explorer must include start and end dates")
 	}
 	start, err := time.Parse(time.DateOnly, dateRange.Start)
 	if err != nil {
@@ -108,7 +108,7 @@ func BuildInput(query models.Query, dateRange models.DateRange) (*awscostexplore
 		return nil, fmt.Errorf("invalid Cost Explorer end date: %w", err)
 	}
 	if !end.After(start) {
-		return nil, fmt.Errorf("Cost Explorer end date must be after start date")
+		return nil, fmt.Errorf("end date for AWS Cost Explorer must be after start date")
 	}
 
 	input := &awscostexplorer.GetCostAndUsageInput{
@@ -185,7 +185,7 @@ func (s *Service) fetchAll(
 		token = output.NextPageToken
 	}
 
-	return nil, maxPages, fmt.Errorf("Cost Explorer response exceeded the %d-page safety limit", maxPages)
+	return nil, maxPages, fmt.Errorf("response from AWS Cost Explorer exceeded the %d-page safety limit", maxPages)
 }
 
 func buildFilter(filter models.QueryFilter) *types.Expression {

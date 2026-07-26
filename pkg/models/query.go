@@ -90,7 +90,7 @@ func (q Query) Validate() error {
 		return fmt.Errorf("result format must be timeSeries or table")
 	}
 	if len(q.GroupBy) > 2 {
-		return fmt.Errorf("Cost Explorer supports at most two group-by dimensions")
+		return fmt.Errorf("AWS Cost Explorer supports at most two group-by dimensions")
 	}
 
 	seen := make(map[string]struct{}, len(q.GroupBy))

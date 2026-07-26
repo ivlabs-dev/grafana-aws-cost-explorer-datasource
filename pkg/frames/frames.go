@@ -15,7 +15,7 @@ import (
 
 func Convert(query models.Query, output *awscostexplorer.GetCostAndUsageOutput) (data.Frames, error) {
 	if output == nil {
-		return nil, fmt.Errorf("Cost Explorer response is nil")
+		return nil, fmt.Errorf("response from AWS Cost Explorer is nil")
 	}
 	if query.Format == models.FormatTable {
 		frame, err := tableFrame(query, output)
@@ -208,7 +208,7 @@ func appendPoint(item *series, timestamp time.Time, metric types.MetricValue) er
 
 func metricAmount(metric types.MetricValue) (float64, error) {
 	if metric.Amount == nil {
-		return 0, fmt.Errorf("Cost Explorer metric amount is missing")
+		return 0, fmt.Errorf("metric amount from AWS Cost Explorer is missing")
 	}
 	value, err := strconv.ParseFloat(*metric.Amount, 64)
 	if err != nil {
@@ -219,7 +219,7 @@ func metricAmount(metric types.MetricValue) (float64, error) {
 
 func periodStart(period types.ResultByTime) (time.Time, error) {
 	if period.TimePeriod == nil || period.TimePeriod.Start == nil {
-		return time.Time{}, fmt.Errorf("Cost Explorer response time period is missing a start date")
+		return time.Time{}, fmt.Errorf("response time period from AWS Cost Explorer is missing a start date")
 	}
 	value, err := time.Parse(time.DateOnly, *period.TimePeriod.Start)
 	if err != nil {
