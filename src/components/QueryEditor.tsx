@@ -3,13 +3,23 @@ import { QueryEditorProps } from '@grafana/data';
 import { Alert, Combobox, InlineField, Input } from '@grafana/ui';
 import { DataSource } from '../datasource';
 import { FORMAT_OPTIONS, GRANULARITY_OPTIONS, GROUP_OPTIONS, METRIC_OPTIONS } from '../options';
-import { CostExplorerDataSourceOptions, CostMetric, CostQuery, Granularity, GroupBy, ResultFormat } from '../types';
+import {
+  CostExplorerDataSourceOptions,
+  CostMetric,
+  CostQuery,
+  Granularity,
+  GroupBy,
+  normalizeQuery,
+  ResultFormat,
+} from '../types';
 
 type Props = QueryEditorProps<DataSource, CostQuery, CostExplorerDataSourceOptions>;
 
 export function QueryEditor({ query, onChange, onRunQuery }: Props) {
+  const model = normalizeQuery(query);
+
   const update = (patch: Partial<CostQuery>, run = true) => {
-    onChange({ ...query, ...patch });
+    onChange({ ...model, ...patch });
     if (run) {
       onRunQuery();
     }
@@ -17,8 +27,8 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
 
   const updateFilter = (key: keyof CostQuery['filter'], value: string) => {
     onChange({
-      ...query,
-      filter: { ...query.filter, [key]: value },
+      ...model,
+      filter: { ...model.filter, [key]: value },
     });
   };
 
@@ -27,12 +37,12 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
       update({ groupBy: [] });
       return;
     }
-    const second = query.groupBy[1] === value ? undefined : query.groupBy[1];
+    const second = model.groupBy[1] === value ? undefined : model.groupBy[1];
     update({ groupBy: second ? [value, second] : [value] });
   };
 
   const changeSecondGroup = (value: GroupBy | '') => {
-    const first = query.groupBy[0];
+    const first = model.groupBy[0];
     update({ groupBy: first && value && value !== first ? [first, value] : first ? [first] : [] });
   };
 
@@ -42,7 +52,7 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
         <Combobox<CostMetric>
           id="query-metric"
           options={METRIC_OPTIONS}
-          value={query.metric}
+          value={model.metric}
           width={32}
           onChange={(value) => update({ metric: value.value })}
         />
@@ -51,7 +61,7 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
         <Combobox<Granularity>
           id="query-granularity"
           options={GRANULARITY_OPTIONS}
-          value={query.granularity}
+          value={model.granularity}
           width={24}
           onChange={(value) => update({ granularity: value.value })}
         />
@@ -60,7 +70,7 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
         <Combobox<GroupBy | ''>
           id="query-group-1"
           options={GROUP_OPTIONS}
-          value={query.groupBy[0] ?? ''}
+          value={model.groupBy[0] ?? ''}
           width={32}
           onChange={(value) => changeFirstGroup(value.value)}
         />
@@ -68,10 +78,10 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
       <InlineField label="Group by 2" labelWidth={18} htmlFor="query-group-2">
         <Combobox<GroupBy | ''>
           id="query-group-2"
-          options={GROUP_OPTIONS.filter((option) => option.value !== query.groupBy[0])}
-          value={query.groupBy[1] ?? ''}
+          options={GROUP_OPTIONS.filter((option) => option.value !== model.groupBy[0])}
+          value={model.groupBy[1] ?? ''}
           width={32}
-          disabled={!query.groupBy[0]}
+          disabled={!model.groupBy[0]}
           onChange={(value) => changeSecondGroup(value.value)}
         />
       </InlineField>
@@ -80,7 +90,7 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
         <Input
           id="query-filter-service"
           aria-label="AWS service filter"
-          value={query.filter.service ?? ''}
+          value={model.filter.service ?? ''}
           placeholder="Amazon Elastic Compute Cloud - Compute"
           width={48}
           onChange={(event: ChangeEvent<HTMLInputElement>) => updateFilter('service', event.currentTarget.value)}
@@ -91,7 +101,7 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
         <Input
           id="query-filter-account"
           aria-label="Linked account filter"
-          value={query.filter.linkedAccount ?? ''}
+          value={model.filter.linkedAccount ?? ''}
           placeholder="123456789012"
           width={32}
           onChange={(event: ChangeEvent<HTMLInputElement>) => updateFilter('linkedAccount', event.currentTarget.value)}
@@ -102,7 +112,7 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
         <Input
           id="query-filter-region"
           aria-label="Region filter"
-          value={query.filter.region ?? ''}
+          value={model.filter.region ?? ''}
           placeholder="eu-west-1"
           width={32}
           onChange={(event: ChangeEvent<HTMLInputElement>) => updateFilter('region', event.currentTarget.value)}
@@ -113,7 +123,7 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
         <Input
           id="query-filter-tag-key"
           aria-label="Cost allocation tag key"
-          value={query.filter.tagKey ?? ''}
+          value={model.filter.tagKey ?? ''}
           placeholder="Environment"
           width={32}
           onChange={(event: ChangeEvent<HTMLInputElement>) => updateFilter('tagKey', event.currentTarget.value)}
@@ -124,7 +134,7 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
         <Input
           id="query-filter-tag-value"
           aria-label="Cost allocation tag value"
-          value={query.filter.tagValue ?? ''}
+          value={model.filter.tagValue ?? ''}
           placeholder="production"
           width={32}
           onChange={(event: ChangeEvent<HTMLInputElement>) => updateFilter('tagValue', event.currentTarget.value)}
@@ -136,18 +146,18 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
         <Combobox<ResultFormat>
           id="query-format"
           options={FORMAT_OPTIONS}
-          value={query.format}
+          value={model.format}
           width={24}
           onChange={(value) => update({ format: value.value })}
         />
       </InlineField>
 
-      {query.metric === 'UsageQuantity' && (
+      {model.metric === 'UsageQuantity' && (
         <Alert title="Usage quantities can have different units" severity="warning">
           Filter to a meaningful service or usage type before aggregating UsageQuantity.
         </Alert>
       )}
-      {Boolean(query.filter.tagKey) !== Boolean(query.filter.tagValue) && (
+      {Boolean(model.filter.tagKey) !== Boolean(model.filter.tagValue) && (
         <Alert title="Complete the tag filter" severity="warning">
           Both tag key and tag value are required.
         </Alert>

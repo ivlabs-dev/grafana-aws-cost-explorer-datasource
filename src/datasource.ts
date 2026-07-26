@@ -1,6 +1,6 @@
 import { CoreApp, DataSourceInstanceSettings, ScopedVars } from '@grafana/data';
 import { DataSourceWithBackend, getTemplateSrv } from '@grafana/runtime';
-import { CostExplorerDataSourceOptions, CostQuery, DEFAULT_QUERY } from './types';
+import { CostExplorerDataSourceOptions, CostQuery, DEFAULT_QUERY, normalizeQuery } from './types';
 
 export class DataSource extends DataSourceWithBackend<CostQuery, CostExplorerDataSourceOptions> {
   constructor(instanceSettings: DataSourceInstanceSettings<CostExplorerDataSourceOptions>) {
@@ -12,15 +12,16 @@ export class DataSource extends DataSourceWithBackend<CostQuery, CostExplorerDat
   }
 
   applyTemplateVariables(query: CostQuery, scopedVars: ScopedVars): CostQuery {
+    const model = normalizeQuery(query);
     const replace = (value?: string) => getTemplateSrv().replace(value ?? '', scopedVars);
     return {
-      ...query,
+      ...model,
       filter: {
-        service: replace(query.filter.service),
-        linkedAccount: replace(query.filter.linkedAccount),
-        region: replace(query.filter.region),
-        tagKey: replace(query.filter.tagKey),
-        tagValue: replace(query.filter.tagValue),
+        service: replace(model.filter.service),
+        linkedAccount: replace(model.filter.linkedAccount),
+        region: replace(model.filter.region),
+        tagKey: replace(model.filter.tagKey),
+        tagValue: replace(model.filter.tagValue),
       },
     };
   }

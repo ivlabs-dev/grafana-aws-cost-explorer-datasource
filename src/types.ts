@@ -43,6 +43,15 @@ export const DEFAULT_QUERY: CostQuery = {
   format: 'timeSeries',
 };
 
+export function normalizeQuery(query: CostQuery): CostQuery {
+  return {
+    ...DEFAULT_QUERY,
+    ...query,
+    groupBy: query.groupBy ?? [],
+    filter: query.filter ?? {},
+  };
+}
+
 export interface CostExplorerDataSourceOptions extends DataSourceJsonData {
   authMode?: AuthMode;
   region?: string;

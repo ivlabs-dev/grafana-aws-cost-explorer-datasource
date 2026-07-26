@@ -62,6 +62,13 @@ function renderEditor(query: CostQuery = DEFAULT_QUERY) {
 }
 
 describe('QueryEditor', () => {
+  it('normalizes the partial query Grafana supplies for a new panel', () => {
+    renderEditor({ refId: 'A' } as CostQuery);
+    expect(screen.getByLabelText('Metric')).toHaveValue('UnblendedCost');
+    expect(screen.getByLabelText('Group by 2')).toBeDisabled();
+    expect(screen.getByLabelText('AWS service filter')).toHaveValue('');
+  });
+
   it('starts with production query defaults', () => {
     renderEditor();
     expect(screen.getByLabelText('Metric')).toHaveValue('UnblendedCost');
