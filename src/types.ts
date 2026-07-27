@@ -15,6 +15,8 @@ export type GroupBy =
   | 'OPERATION'
   | 'AVAILABILITY_ZONE';
 export type ResultFormat = 'timeSeries' | 'table';
+export type TopN = 0 | 5 | 10 | 20;
+export type QueryRangeMode = 'dashboard' | 'monthToDate' | 'previousEquivalentPeriod';
 
 export interface CostFilter {
   service?: string;
@@ -31,6 +33,11 @@ export interface CostQuery extends DataQuery {
   groupBy: GroupBy[];
   filter: CostFilter;
   format: ResultFormat;
+  includeIncompletePeriod: boolean;
+  topN: TopN;
+  includeOther: boolean;
+  alignMonthlyToCalendar: boolean;
+  rangeMode: QueryRangeMode;
 }
 
 export const DEFAULT_QUERY: CostQuery = {
@@ -41,6 +48,11 @@ export const DEFAULT_QUERY: CostQuery = {
   groupBy: [],
   filter: {},
   format: 'timeSeries',
+  includeIncompletePeriod: false,
+  topN: 0,
+  includeOther: true,
+  alignMonthlyToCalendar: true,
+  rangeMode: 'dashboard',
 };
 
 export function normalizeQuery(query: CostQuery): CostQuery {
