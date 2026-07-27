@@ -48,13 +48,16 @@ The current MVP vertical slice includes:
 
 ## Screenshots
 
-Screenshots will be added before the first catalog release.
+The following screenshots use development data; credentials are not included,
+and visible account-like values are development placeholders.
 
 - Data-source authentication and cache configuration: _placeholder_
-- Visual Cost Explorer query editor: _placeholder_
+- Visual Cost Explorer query editor:
+  ![Cost Explorer query editor](docs/screenshots/aws-cost-explorer-query-editor.png)
 - Example FinOps dashboard with summary KPIs:
   ![AWS Cost Explorer dashboard](docs/screenshots/aws-cost-explorer-dashboard.png)
-- Query Inspector cache and freshness metadata: _placeholder_
+- Query Inspector cache and freshness metadata:
+  ![Query Inspector metadata](docs/screenshots/aws-cost-explorer-query-inspector.png)
 
 ## Requirements
 
