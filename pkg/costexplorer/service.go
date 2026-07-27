@@ -27,15 +27,19 @@ type Service struct {
 }
 
 type Execution struct {
-	Output      *awscostexplorer.GetCostAndUsageOutput
-	CacheResult cache.Result
-	Pages       int
-	AWSDuration time.Duration
+	Output                *awscostexplorer.GetCostAndUsageOutput
+	CacheResult           cache.Result
+	CacheAge              time.Duration
+	CacheTTL              time.Duration
+	Pages                 int
+	AWSDuration           time.Duration
+	ContainsEstimatedData bool
 }
 
 type cachedResponse struct {
-	Output *awscostexplorer.GetCostAndUsageOutput
-	Pages  int
+	Output      *awscostexplorer.GetCostAndUsageOutput
+	Pages       int
+	AWSDuration time.Duration
 }
 
 func NewService(client awsclient.CostExplorerAPI, resultCache cache.Cache) (*Service, error) {
@@ -68,31 +72,68 @@ func (s *Service) Execute(
 		return nil, err
 	}
 
-	var awsDuration time.Duration
-	value, cacheResult, err := s.cache.GetOrLoad(ctx, key, func(loadContext context.Context) (any, error) {
+	value, cacheDetails, err := s.cache.GetOrLoad(ctx, key, func(loadContext context.Context) (any, error) {
 		started := time.Now()
 		output, pages, loadErr := s.fetchAll(loadContext, input)
-		awsDuration = time.Since(started)
-		if loadErr != nil {
-			return nil, loadErr
-		}
-		return &cachedResponse{Output: output, Pages: pages}, nil
+		return &cachedResponse{
+			Output:      output,
+			Pages:       pages,
+			AWSDuration: time.Since(started),
+		}, loadErr
 	})
-	if err != nil {
-		return nil, ClassifyError(err)
-	}
 
 	cached, ok := value.(*cachedResponse)
-	if !ok || cached == nil || cached.Output == nil {
+	if !ok || cached == nil {
+		if err != nil {
+			return &Execution{
+				CacheResult: cacheDetails.Result,
+				CacheAge:    cacheDetails.Age,
+				CacheTTL:    cacheDetails.TTL,
+			}, ClassifyError(err)
+		}
 		return nil, fmt.Errorf("cache returned an invalid AWS Cost Explorer response")
 	}
 
-	return &Execution{
-		Output:      cached.Output,
-		CacheResult: cacheResult,
-		Pages:       cached.Pages,
-		AWSDuration: awsDuration,
-	}, nil
+	awsDuration := time.Duration(0)
+	pages := 0
+	if cacheDetails.Result == cache.ResultMiss {
+		awsDuration = cached.AWSDuration
+		pages = cached.Pages
+	}
+	execution := &Execution{
+		Output:                cached.Output,
+		CacheResult:           cacheDetails.Result,
+		CacheAge:              cacheDetails.Age,
+		CacheTTL:              cacheDetails.TTL,
+		Pages:                 pages,
+		AWSDuration:           awsDuration,
+		ContainsEstimatedData: containsEstimatedData(cached.Output),
+	}
+	if err != nil {
+		return execution, ClassifyError(err)
+	}
+
+	if cached.Output == nil {
+		return nil, fmt.Errorf("cache returned an invalid AWS Cost Explorer response")
+	}
+
+	return execution, nil
+}
+
+func (e Execution) CacheStatus() cache.Result {
+	return (cache.Details{Result: e.CacheResult}).MetadataStatus()
+}
+
+func containsEstimatedData(output *awscostexplorer.GetCostAndUsageOutput) bool {
+	if output == nil {
+		return false
+	}
+	for _, result := range output.ResultsByTime {
+		if result.Estimated {
+			return true
+		}
+	}
+	return false
 }
 
 func BuildInput(query models.Query, dateRange models.DateRange) (*awscostexplorer.GetCostAndUsageInput, error) {
@@ -132,14 +173,25 @@ func BuildInput(query models.Query, dateRange models.DateRange) (*awscostexplore
 }
 
 func CacheKey(credentialContext string, query models.Query, dateRange models.DateRange) (string, error) {
+	upstreamQuery := struct {
+		Metric      string             `json:"metric"`
+		Granularity string             `json:"granularity"`
+		GroupBy     []string           `json:"groupBy,omitempty"`
+		Filter      models.QueryFilter `json:"filter,omitempty"`
+	}{
+		Metric:      query.Metric,
+		Granularity: query.Granularity,
+		GroupBy:     query.GroupBy,
+		Filter:      query.Filter,
+	}
 	payload := struct {
 		CredentialContext string           `json:"credentialContext"`
 		DateRange         models.DateRange `json:"dateRange"`
-		Query             models.Query     `json:"query"`
+		Query             any              `json:"query"`
 	}{
 		CredentialContext: credentialContext,
 		DateRange:         dateRange,
-		Query:             query,
+		Query:             upstreamQuery,
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
@@ -245,7 +297,7 @@ func ClassifyError(err error) error {
 
 	var apiError smithy.APIError
 	if !errors.As(err, &apiError) {
-		return fmt.Errorf("AWS Cost Explorer request failed: %w", err)
+		return fmt.Errorf("AWS Cost Explorer request failed; verify network connectivity and the configured AWS endpoint")
 	}
 
 	switch strings.ToLower(apiError.ErrorCode()) {

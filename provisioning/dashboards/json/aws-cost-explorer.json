@@ -13,6 +13,302 @@
         "type": "ivlabsdev-awscostexplorer-datasource",
         "uid": "aws-cost-explorer"
       },
+      "description": "Sum of UnblendedCost for completed UTC billing periods in the selected dashboard range. The current incomplete day is excluded by default.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "decimals": 2,
+          "noValue": "No completed periods"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {},
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": [],
+          "includeIncompletePeriod": false,
+          "includeOther": true,
+          "metric": "UnblendedCost",
+          "rangeMode": "dashboard",
+          "refId": "A",
+          "topN": 0,
+          "version": 1
+        }
+      ],
+      "title": "Cost in selected period",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "aws-cost-explorer"
+      },
+      "description": "Month-to-date UnblendedCost from the first day of the current UTC month. This intentionally includes the incomplete current period; AWS Cost Explorer data can have a reporting delay.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "decimals": 2,
+          "noValue": "No month-to-date data"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {},
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": [],
+          "includeIncompletePeriod": true,
+          "includeOther": true,
+          "metric": "UnblendedCost",
+          "rangeMode": "monthToDate",
+          "refId": "A",
+          "topN": 0,
+          "version": 1
+        }
+      ],
+      "title": "Month-to-date cost",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "aws-cost-explorer"
+      },
+      "description": "Percentage change in completed-period UnblendedCost versus the immediately preceding equivalent range. Positive means higher spend and negative means lower spend; neither direction is classified as good or bad. A zero or missing previous total is shown as no comparison.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "decimals": 1,
+          "mappings": [
+            {
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "No comparison"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "noValue": "No comparison",
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {},
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": [],
+          "hide": true,
+          "includeIncompletePeriod": false,
+          "includeOther": true,
+          "metric": "UnblendedCost",
+          "rangeMode": "dashboard",
+          "refId": "A",
+          "topN": 0,
+          "version": 1
+        },
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {},
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": [],
+          "hide": true,
+          "includeIncompletePeriod": false,
+          "includeOther": true,
+          "metric": "UnblendedCost",
+          "rangeMode": "previousEquivalentPeriod",
+          "refId": "B",
+          "topN": 0,
+          "version": 1
+        },
+        {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$A",
+          "hide": true,
+          "reducer": "sum",
+          "refId": "C",
+          "settings": {
+            "mode": "dropNN"
+          },
+          "type": "reduce"
+        },
+        {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$B",
+          "hide": true,
+          "reducer": "sum",
+          "refId": "D",
+          "settings": {
+            "mode": "dropNN"
+          },
+          "type": "reduce"
+        },
+        {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "($D != 0) * (($C - $D) / $D * 100)",
+          "hide": false,
+          "refId": "E",
+          "type": "math"
+        }
+      ],
+      "title": "Change vs previous period",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "aws-cost-explorer"
+      },
+      "description": "AWS service with the highest total UnblendedCost across completed billing periods in the selected range. Ranking uses the full range, not only the latest point.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "decimals": 2,
+          "noValue": "No service cost data"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "fields": "",
+          "limit": 1,
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {},
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": ["SERVICE"],
+          "includeIncompletePeriod": false,
+          "includeOther": false,
+          "metric": "UnblendedCost",
+          "rangeMode": "dashboard",
+          "refId": "A",
+          "topN": 1,
+          "version": 1
+        }
+      ],
+      "title": "Highest-cost service",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "aws-cost-explorer"
+      },
+      "description": "Daily UnblendedCost for completed UTC billing periods. AWS period timestamps represent the beginning of each billing day.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -21,7 +317,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 0
+        "y": 5
       },
       "id": 1,
       "options": {
@@ -38,12 +334,17 @@
       },
       "targets": [
         {
+          "alignMonthlyToCalendar": true,
           "filter": {},
           "format": "timeSeries",
           "granularity": "DAILY",
           "groupBy": [],
+          "includeIncompletePeriod": false,
+          "includeOther": true,
           "metric": "UnblendedCost",
+          "rangeMode": "dashboard",
           "refId": "A",
+          "topN": 0,
           "version": 1
         }
       ],
@@ -55,6 +356,7 @@
         "type": "ivlabsdev-awscostexplorer-datasource",
         "uid": "aws-cost-explorer"
       },
+      "description": "Daily UnblendedCost for the ten highest-cost AWS services across the complete selected range. Remaining services are combined as Other separately for each day.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -63,7 +365,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 0
+        "y": 5
       },
       "id": 2,
       "options": {
@@ -80,12 +382,17 @@
       },
       "targets": [
         {
+          "alignMonthlyToCalendar": true,
           "filter": {},
           "format": "timeSeries",
           "granularity": "DAILY",
           "groupBy": ["SERVICE"],
+          "includeIncompletePeriod": false,
+          "includeOther": true,
           "metric": "UnblendedCost",
+          "rangeMode": "dashboard",
           "refId": "A",
+          "topN": 10,
           "version": 1
         }
       ],
@@ -97,6 +404,7 @@
         "type": "ivlabsdev-awscostexplorer-datasource",
         "uid": "aws-cost-explorer"
       },
+      "description": "Daily UnblendedCost by linked account for completed UTC billing periods. Account identifiers come from AWS Cost Explorer; no account is hard-coded.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -105,7 +413,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 8
+        "y": 13
       },
       "id": 3,
       "options": {
@@ -114,12 +422,17 @@
       },
       "targets": [
         {
+          "alignMonthlyToCalendar": true,
           "filter": {},
           "format": "table",
           "granularity": "DAILY",
           "groupBy": ["LINKED_ACCOUNT"],
+          "includeIncompletePeriod": false,
+          "includeOther": true,
           "metric": "UnblendedCost",
+          "rangeMode": "dashboard",
           "refId": "A",
+          "topN": 0,
           "version": 1
         }
       ],
@@ -131,6 +444,7 @@
         "type": "ivlabsdev-awscostexplorer-datasource",
         "uid": "aws-cost-explorer"
       },
+      "description": "AmortizedCost aligned to complete UTC calendar months. The current incomplete month is excluded by default.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -139,7 +453,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 8
+        "y": 13
       },
       "id": 4,
       "options": {
@@ -148,12 +462,17 @@
       },
       "targets": [
         {
+          "alignMonthlyToCalendar": true,
           "filter": {},
           "format": "table",
           "granularity": "MONTHLY",
           "groupBy": [],
+          "includeIncompletePeriod": false,
+          "includeOther": true,
           "metric": "AmortizedCost",
+          "rangeMode": "dashboard",
           "refId": "A",
+          "topN": 0,
           "version": 1
         }
       ],

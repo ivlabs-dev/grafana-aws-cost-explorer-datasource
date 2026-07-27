@@ -27,15 +27,26 @@ credential providers safely.
 
 `DataSourceWithBackend` sends `CostQuery` as the JSON body of each Grafana
 `DataQuery`. Version 1 contains the metric, granularity, up to two groupings,
-optional filters, and result format. The backend applies defaults and validates
-the model independently of the UI. Multiple Grafana queries are processed into
-separate responses keyed by `refId`; an error in one query does not crash or
-discard other query responses.
+optional filters, result format, period controls, and presentation controls.
+The backend applies defaults and validates the model independently of the UI.
+Queries saved before the period and presentation fields were added keep these
+defaults:
+
+- `includeIncompletePeriod=false`
+- `topN=0`
+- `includeOther=true`
+- `alignMonthlyToCalendar=true`
+- `rangeMode=dashboard`
+
+Multiple Grafana queries are processed into separate responses keyed by
+`refId`; an error in one query does not crash or discard other query responses.
 
 The dashboard time range remains Grafana-owned. The backend converts its UTC
 timestamps into Cost Explorer date strings. AWS start dates are inclusive and
 end dates are exclusive. A non-midnight upper timestamp is rounded to the next
-UTC day so the date containing that endpoint is included.
+UTC day so the date containing that endpoint is included. `rangeMode` is
+normally `dashboard`; `monthToDate` and `previousEquivalentPeriod` are narrowly
+scoped internal modes used by the provisioned KPI panels.
 
 ## Credential handling
 
@@ -70,19 +81,39 @@ rotate automatically.
 
 ## Query lifecycle
 
-1. Decode and validate the versioned query.
-2. Convert the Grafana timestamp range to inclusive/exclusive AWS dates.
-3. Build a typed `GetCostAndUsageInput`, including AND-combined filters.
-4. Hash the safe credential context and canonical request into a cache key.
-5. Return an unexpired cache entry, join an identical in-flight request, or
+1. Decode, default, and validate the versioned query.
+2. Resolve the effective UTC billing period and range mode.
+3. Exclude the current daily/monthly period unless it was explicitly included.
+4. Align monthly starts and ends to calendar boundaries when configured.
+5. Return an empty frame and notice without calling AWS if no completed period
+   remains.
+6. Build a typed `GetCostAndUsageInput`, including AND-combined filters.
+7. Hash the safe credential context and upstream request into a cache key.
+8. Return an unexpired cache entry, join an identical in-flight request, or
    become the single loader.
-6. Call `GetCostAndUsage` until `NextPageToken` is empty.
-7. Cache successful combined results; never cache errors.
-8. Convert results into time-series or table data frames.
-9. Return frames or a per-query actionable error to Grafana.
+9. Call `GetCostAndUsage` until `NextPageToken` is empty.
+10. Cache successful combined results; never cache errors.
+11. Normalize every paginated result, rank groups across the complete range,
+    and optionally aggregate excluded groups as `Other` per period and unit.
+12. Convert the prepared results into time-series or table data frames.
+13. Attach non-sensitive execution metadata and return frames or a per-query
+    actionable error to Grafana.
 
 All AWS work uses the Grafana request context plus a 30-second safety timeout.
 Cancellation therefore stops SDK retries and network calls.
+
+### Billing-period resolution
+
+UTC is the billing-period clock because the plugin has no configurable billing
+timezone. Daily exclusion stops the exclusive AWS end date at today's UTC
+midnight. Monthly exclusion stops it at the first day of the current UTC month.
+Yesterday and prior completed months are retained. Including the current period
+sets response metadata so callers can distinguish intentional partial data.
+
+Calendar-aligned monthly queries normalize the start to the first day of its
+month and use first-of-month end boundaries. Alignment can be disabled to
+preserve the range-derived request, but the result can then represent a partial
+month. Neither path mutates Grafana's dashboard range.
 
 ## Caching
 
@@ -91,9 +122,12 @@ minutes and default capacity is 256 entries. Configuration is validated to
 1-86400 seconds and 1-10000 entries.
 
 Keys include authentication mode, role ARN, region, requested period,
-granularity, metric, groupings, and filters. The key emitted internally is only
-a SHA-256 digest. Access keys, secret keys, tokens, and external IDs are never
-included. Filter values affect the digest but are not logged.
+granularity, metric, groupings, and filters. Presentation-only fields—result
+format, Top N, and `Other`—are intentionally absent, allowing table and
+time-series views to reuse the same fully paginated upstream result. The key
+emitted internally is only a SHA-256 digest. Access keys, secret keys, tokens,
+and external IDs are never included. Filter values affect the digest but are
+not logged.
 
 Per-key in-flight state ensures concurrent identical misses make one AWS API
 call. A distributed implementation can later satisfy the same cache interface;
@@ -102,19 +136,53 @@ the MVP does not share cache state between Grafana replicas.
 ## Data-frame generation
 
 For time series, each unique grouping combination becomes a frame with a UTC
-time field and a numeric metric field. Group values are Grafana labels. A
-consistent three-letter currency unit is mapped to Grafana's currency unit ID.
+time field and a numeric metric field. Timestamps represent the beginning of
+AWS billing periods; the backend never adds a local timezone offset. Display
+names contain only non-empty human-readable group values, joined by `·` for
+two dimensions. Original dimension names and values remain Grafana labels, and
+canonical dimension/value identities keep duplicate visible names stable. An
+ungrouped frame uses the metric name.
 
-For tables, one frame contains time period, requested grouping columns, metric,
-amount, and unit. Empty results still return typed, zero-row frames so panels
-remain stable.
+Top N is a post-pagination presentation step. Amount strings are accumulated
+with exact rational arithmetic and ranked by total across the complete range;
+identity breaks equal-total ties deterministically. Limits are applied per
+metric unit. If enabled, `Other` contains one sum for every returned period and
+unit, including explicit zeroes where required, and exposes only the safe
+`costexplorer_group=Other` label.
+
+For tables, one frame contains `Period`, requested grouping columns, metric,
+amount, and unit. `Period` is a sortable `YYYY-MM-DD` or `YYYY-MM` string, which
+avoids browser-local rendering of UTC midnight. Empty results still return
+typed, zero-row frames so panels remain stable.
+
+## Query execution metadata
+
+Every result frame contains a `costExplorer` object in Grafana frame custom
+metadata:
+
+- `queryExecutedAt`
+- `awsApiDurationMs`
+- `queryDurationMs`
+- `cacheStatus`
+- `cacheAgeSeconds` for hits
+- `cacheTtlSeconds`
+- `pageCount`
+- `includesIncompletePeriod`
+- `containsEstimatedData`
+
+The metadata is suitable for Query Inspector and is not repeated as visible
+data columns. Cache hits and shared in-flight results report zero AWS duration
+and pages for the current execution. An effective-range bypass reports
+`bypass`. AWS errors include an empty typed frame with the safe execution
+metadata alongside the per-query error where the SDK response permits it.
 
 ## Logging and sensitive data
 
-Structured backend logs record query duration, AWS duration, cache result,
-pagination count, frame count, reference ID, and safe data-source context.
-They do not record request objects, filters, tag values, credential objects,
-access keys, secret keys, session tokens, or signed headers.
+Structured backend logs use the same safe execution fields plus frame count,
+reference ID, and safe data-source context. Metadata and logging are generated
+independently. Neither records request objects, filters, tag values, cache keys,
+credential objects, access keys, secret keys, session tokens, external IDs,
+AssumeRole session details, or signed headers.
 
 ## Future extension points
 

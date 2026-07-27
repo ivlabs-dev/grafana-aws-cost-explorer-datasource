@@ -1,5 +1,5 @@
 import { ComboboxOption } from '@grafana/ui';
-import { AuthMode, CostMetric, Granularity, GroupBy, ResultFormat } from './types';
+import { AuthMode, CostMetric, Granularity, GroupBy, ResultFormat, TopN } from './types';
 
 export const AUTH_OPTIONS: Array<ComboboxOption<AuthMode>> = [
   { label: 'Default credential chain (recommended)', value: 'default' },
@@ -36,4 +36,11 @@ export const GROUP_OPTIONS: Array<ComboboxOption<GroupBy | ''>> = [
 export const FORMAT_OPTIONS: Array<ComboboxOption<ResultFormat>> = [
   { label: 'Time series', value: 'timeSeries' },
   { label: 'Table', value: 'table' },
+];
+
+export const TOP_N_OPTIONS: Array<ComboboxOption<TopN>> = [
+  { label: 'All', value: 0 },
+  { label: 'Top 5', value: 5 },
+  { label: 'Top 10', value: 10 },
+  { label: 'Top 20', value: 20 },
 ];

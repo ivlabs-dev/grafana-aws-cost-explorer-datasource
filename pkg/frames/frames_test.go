@@ -56,6 +56,11 @@ func TestConvertGroupedTimeSeries(t *testing.T) {
 	if result[0].Fields[1].Labels["SERVICE"] == "" {
 		t.Fatal("grouping label is missing")
 	}
+	for _, frame := range result {
+		if frame.Name == "SERVICE=Amazon EC2" || frame.Name == "SERVICE=Amazon S3" {
+			t.Fatalf("frame name contains a dimension prefix: %q", frame.Name)
+		}
+	}
 }
 
 func TestConvertTimeSeriesDoesNotAdvertiseMixedUnits(t *testing.T) {
@@ -90,8 +95,12 @@ func TestConvertTableAndEmptyResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result[0].Rows() != 1 || result[0].Fields[1].Name != "LINKED_ACCOUNT" {
+	if result[0].Rows() != 1 || result[0].Fields[0].Name != "Period" ||
+		result[0].Fields[1].Name != "LINKED_ACCOUNT" {
 		t.Fatalf("unexpected table schema: fields=%d rows=%d", len(result[0].Fields), result[0].Rows())
+	}
+	if got := result[0].Fields[0].At(0); got != "2026-07-01" {
+		t.Fatalf("daily table period = %#v, want 2026-07-01", got)
 	}
 
 	empty, err := Convert(query, &awscostexplorer.GetCostAndUsageOutput{})
@@ -100,6 +109,22 @@ func TestConvertTableAndEmptyResponse(t *testing.T) {
 	}
 	if len(empty) != 1 || empty[0].Rows() != 0 {
 		t.Fatalf("empty response produced %d frames and %d rows", len(empty), empty[0].Rows())
+	}
+}
+
+func TestConvertMonthlyTableUsesSortablePeriodString(t *testing.T) {
+	query := baseQuery(models.FormatTable)
+	query.Granularity = models.GranularityMonthly
+	output := &awscostexplorer.GetCostAndUsageOutput{
+		ResultsByTime: []types.ResultByTime{periodWithTotal("2026-02-01", "12.34")},
+	}
+
+	result, err := Convert(query, output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := result[0].Fields[0].At(0); got != "2026-02" {
+		t.Fatalf("monthly table period = %#v, want 2026-02", got)
 	}
 }
 

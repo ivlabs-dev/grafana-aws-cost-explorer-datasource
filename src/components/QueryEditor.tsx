@@ -3,6 +3,8 @@ import { QueryEditorProps } from '@grafana/data';
 import { Alert, Combobox, InlineField, Input } from '@grafana/ui';
 import { DataSource } from '../datasource';
 import { FORMAT_OPTIONS, GRANULARITY_OPTIONS, GROUP_OPTIONS, METRIC_OPTIONS } from '../options';
+import { GroupLimitOptions } from './GroupLimitOptions';
+import { PeriodOptions } from './PeriodOptions';
 import {
   CostExplorerDataSourceOptions,
   CostMetric,
@@ -34,7 +36,7 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
 
   const changeFirstGroup = (value: GroupBy | '') => {
     if (!value) {
-      update({ groupBy: [] });
+      update({ groupBy: [], topN: 0 });
       return;
     }
     const second = model.groupBy[1] === value ? undefined : model.groupBy[1];
@@ -64,6 +66,15 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
           value={model.granularity}
           width={24}
           onChange={(value) => update({ granularity: value.value })}
+        />
+      </InlineField>
+      <InlineField label="Result format" labelWidth={18} htmlFor="query-format" required>
+        <Combobox<ResultFormat>
+          id="query-format"
+          options={FORMAT_OPTIONS}
+          value={model.format}
+          width={24}
+          onChange={(value) => update({ format: value.value })}
         />
       </InlineField>
       <InlineField label="Group by 1" labelWidth={18} htmlFor="query-group-1">
@@ -142,15 +153,13 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
         />
       </InlineField>
 
-      <InlineField label="Result format" labelWidth={18} htmlFor="query-format" required>
-        <Combobox<ResultFormat>
-          id="query-format"
-          options={FORMAT_OPTIONS}
-          value={model.format}
-          width={24}
-          onChange={(value) => update({ format: value.value })}
-        />
-      </InlineField>
+      <GroupLimitOptions
+        grouped={model.groupBy.length > 0}
+        topN={model.topN}
+        includeOther={model.includeOther}
+        onChange={(patch) => update(patch)}
+      />
+      <PeriodOptions query={model} onChange={(patch) => update(patch)} />
 
       {model.metric === 'UsageQuantity' && (
         <Alert title="Usage quantities can have different units" severity="warning">

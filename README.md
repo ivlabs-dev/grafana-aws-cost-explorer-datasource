@@ -32,19 +32,32 @@ The current MVP vertical slice includes:
 - AWS service, linked account, region, and cost allocation tag filters
 - paginated `GetCostAndUsage` execution
 - grouped and ungrouped Grafana time-series frames
-- table frames with period, dimensions, metric, amount, and unit
+- incomplete daily/monthly period exclusion by default, with an explicit opt-in
+- calendar-aligned monthly queries by default
+- clean grouped series names with original AWS dimensions preserved as labels
+- Top 5, Top 10, or Top 20 ranking across the complete range, with optional
+  per-period `Other` aggregation
+- table frames with sortable billing-period strings, dimensions, metric,
+  amount, and unit
 - bounded in-memory TTL/LRU caching and concurrent request deduplication
-- structured backend duration, cache, pagination, and error logs
-- a provisioned data source and four-panel example dashboard
+- Query Inspector metadata and structured logs for freshness, cache, AWS
+  duration, pagination, incomplete periods, and estimated results
+- a provisioned data source and eight-panel example dashboard, including four
+  summary KPIs
 - mocked Go tests and Jest frontend tests that require no AWS account
 
 ## Screenshots
 
-Screenshots will be added before the first catalog release.
+The following screenshots use development data; credentials are not included,
+and visible account-like values are development placeholders.
 
 - Data-source authentication and cache configuration: _placeholder_
-- Visual Cost Explorer query editor: _placeholder_
-- Example FinOps dashboard: _placeholder_
+- Visual Cost Explorer query editor:
+  ![Cost Explorer query editor](docs/screenshots/aws-cost-explorer-query-editor.png)
+- Example FinOps dashboard with summary KPIs:
+  ![AWS Cost Explorer dashboard](docs/screenshots/aws-cost-explorer-dashboard.png)
+- Query Inspector cache and freshness metadata:
+  ![Query Inspector metadata](docs/screenshots/aws-cost-explorer-query-inspector.png)
 
 ## Requirements
 
@@ -218,11 +231,11 @@ The query editor uses the Grafana dashboard range automatically.
 
 - Total daily cost: **Unblended cost**, **Daily**, no grouping, **Time series**
 - Daily cost by service: **Unblended cost**, **Daily**, group by **AWS
-  service**, **Time series**
+  service**, **Top 10**, combine remaining groups as **Other**, **Time series**
 - Account/service matrix: group first by **Linked account**, then by **AWS
   service**, **Table**
 - Monthly effective cost: **Amortized cost**, **Monthly**, no grouping,
-  **Table**
+  **Align to complete calendar months**, **Table**
 - Tagged workload: set tag key `Environment` and tag value `production`
 
 Cost Explorer's end date is exclusive. The backend preserves a dashboard end
@@ -230,6 +243,50 @@ at exact UTC midnight and rounds any other end timestamp to the next UTC date.
 
 `UsageQuantity` can combine unrelated units such as hours and gigabytes.
 Filter to a meaningful service or usage type before using it.
+
+### Period and presentation semantics
+
+AWS may revise the current day or month while billing data is still arriving.
+The plugin therefore excludes the current UTC billing period by default:
+
+- daily queries stop before the current UTC calendar day
+- monthly queries stop before the current UTC calendar month
+- a range containing no completed periods returns an empty, valid frame with a
+  notice and makes no AWS request
+
+Select **Include incomplete current period** when intentionally viewing
+month-to-date or current-day data. The frame metadata then records that the
+response may contain an incomplete period. This option affects only the Cost
+Explorer query; it does not alter the dashboard time range.
+
+Monthly queries select **Align to complete calendar months** by default. The
+start is normalized to the first day of its month, and the exclusive end uses
+a calendar-month boundary. Disabling alignment preserves the range-derived
+behavior and can return a partial first or last month.
+
+Table periods are sortable strings: `YYYY-MM-DD` for daily data and `YYYY-MM`
+for monthly data. Time-series values remain Grafana timestamps at the beginning
+of the AWS billing period in UTC; the plugin never applies a browser-local
+offset.
+
+Grouped time-series display names contain values only, such as `Amazon EC2` or
+`Amazon EC2 · Production`. Dimension names and values remain available as
+Grafana field labels. Top N ranking uses each group's decimal-safe total across
+the complete returned range. When enabled, `Other` sums the excluded groups
+separately for every period and never combines incompatible units.
+
+### Example dashboard KPIs
+
+The provisioned dashboard places four stat panels above the detailed charts:
+
+- **Cost in selected period** sums ungrouped `UnblendedCost`.
+- **Month-to-date cost** intentionally includes the incomplete current period
+  and notes AWS reporting delay.
+- **Change vs previous period** compares the selected range with the immediately
+  preceding equivalent-duration range. Positive and negative changes are
+  presented neutrally; a zero previous total returns no percentage.
+- **Highest-cost service** ranks services over the selected range and displays
+  the leading service name without a `SERVICE=` prefix.
 
 ## Caching behavior
 
@@ -247,7 +304,21 @@ the query path:
 Keys are SHA-256 digests of safe credential context and the canonical request:
 role ARN, authentication mode, region, time period, granularity, metric,
 groupings, and filters. Secrets are excluded. Filter and tag values influence
-the digest but are not emitted in logs.
+the digest but are not emitted in logs. Presentation-only choices such as table
+versus time series, Top N, and `Other` reuse the same cached AWS response.
+
+Every returned frame carries a `costExplorer` custom metadata object. Grafana's
+Query Inspector can show:
+
+- query execution timestamp, total backend duration, and AWS API duration
+- cache status (`hit`, `miss`, or `bypass`), hit age, and configured TTL
+- AWS page count
+- whether an incomplete billing period was included
+- whether AWS marked any returned period as estimated
+
+Cache hits report zero AWS duration and zero pages because no AWS call was made
+for that execution. Metadata never contains credentials, external IDs, cache
+keys, request filters, or tag values.
 
 ## What the plugin sends to AWS
 
@@ -333,10 +404,38 @@ Cost Explorer must be enabled, billing data can lag, and filters require exact
 Cost Explorer dimension values. Widen the dashboard range and remove filters
 to isolate the issue.
 
-**Today's value looks incomplete**
+**The latest day is missing**
 
-AWS billing data is not real-time and can be revised. The 15-minute plugin
-cache adds a bounded amount of intentional freshness delay.
+This is the safe default. Daily queries exclude the current UTC calendar day
+because AWS can still revise it. Enable **Include incomplete current period**
+when the partial value is useful.
+
+**The latest month is missing**
+
+Monthly queries exclude the current calendar month by default. Enable
+**Include incomplete current period** for month-to-date reporting. The example
+month-to-date KPI already does this intentionally.
+
+**Why does the current month not match my AWS console yet?**
+
+Cost Explorer is not real-time, its results may be estimated, and AWS can revise
+recent periods. The plugin also uses a bounded cache. Check
+`costExplorer.containsEstimatedData`, `cacheStatus`, `cacheAgeSeconds`, and
+`queryExecutedAt` in Query Inspector before comparing snapshots.
+
+**Why does the dashboard show cached data?**
+
+The default cache TTL is 15 minutes to avoid unnecessary paid Cost Explorer API
+calls. Query Inspector reports the cache status, age, and TTL. Save a shorter
+TTL in data-source settings when the additional AWS calls are acceptable;
+restarting the backend process also clears this in-memory cache.
+
+**Why are only the top services displayed?**
+
+The example service chart uses Top 10 across the complete selected range and
+combines the remainder into `Other` per period. Choose **All** in **Limit
+groups**, select a larger limit, or disable **Combine remaining groups as
+Other** for a different presentation.
 
 **The plugin is not visible**
 
@@ -367,11 +466,13 @@ values.
 - exact text filter entry rather than AWS dimension-value discovery
 - no hourly granularity
 - no cost category grouping or UI
+- highest-cost service uses the service name as its primary stat; portable
+  Grafana stat configuration does not also render the cost as secondary text
 - no CUR, Athena, forecasts, budgets, anomalies, commitments, or Organizations
   discovery
 - no hosted service, reports, notifications, billing, subscriptions, or user
   analytics
-- no signed catalog release or screenshots yet
+- no signed catalog release yet
 
 ## Roadmap
 
