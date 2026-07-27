@@ -52,7 +52,8 @@ Screenshots will be added before the first catalog release.
 
 - Data-source authentication and cache configuration: _placeholder_
 - Visual Cost Explorer query editor: _placeholder_
-- Example FinOps dashboard with summary KPIs: _placeholder_
+- Example FinOps dashboard with summary KPIs:
+  ![AWS Cost Explorer dashboard](docs/screenshots/aws-cost-explorer-dashboard.png)
 - Query Inspector cache and freshness metadata: _placeholder_
 
 ## Requirements
@@ -468,7 +469,7 @@ values.
   discovery
 - no hosted service, reports, notifications, billing, subscriptions, or user
   analytics
-- no signed catalog release or screenshots yet
+- no signed catalog release yet
 
 ## Roadmap
 
