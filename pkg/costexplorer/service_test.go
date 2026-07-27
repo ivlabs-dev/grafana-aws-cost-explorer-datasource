@@ -65,12 +65,21 @@ func TestServicePaginationAndCache(t *testing.T) {
 	if first.Pages != 2 || first.CacheResult != cache.ResultMiss || len(first.Output.ResultsByTime) != 2 {
 		t.Fatalf("unexpected first execution: %+v", first)
 	}
+	if first.CacheStatus() != cache.ResultMiss || first.CacheTTL != time.Minute {
+		t.Fatalf("unexpected first cache metadata: %+v", first)
+	}
 	second, err := service.Execute(context.Background(), settings, query, dateRange)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if second.CacheResult != cache.ResultHit {
-		t.Fatalf("second cache result = %s, want hit", second.CacheResult)
+	if second.CacheResult != cache.ResultHit || second.CacheStatus() != cache.ResultHit {
+		t.Fatalf("second cache result = %s (%s), want hit", second.CacheResult, second.CacheStatus())
+	}
+	if second.CacheAge < 0 || second.CacheTTL != time.Minute {
+		t.Fatalf("unexpected second cache timing: age=%s ttl=%s", second.CacheAge, second.CacheTTL)
+	}
+	if second.AWSDuration != 0 {
+		t.Fatalf("cache hit AWS duration = %s, want zero", second.AWSDuration)
 	}
 	if client.calls != 2 {
 		t.Fatalf("AWS calls = %d, want two pages from one logical request", client.calls)
@@ -84,7 +93,7 @@ func TestServiceReturnsClassifiedAWSError(t *testing.T) {
 	resultCache, _ := cache.NewMemory(time.Minute, 10)
 	service, _ := NewService(client, resultCache)
 
-	_, err := service.Execute(
+	execution, err := service.Execute(
 		context.Background(),
 		validSettings(),
 		validQuery(),
@@ -95,6 +104,57 @@ func TestServiceReturnsClassifiedAWSError(t *testing.T) {
 	}
 	if got := err.Error(); got != "AWS denied the request; grant ce:GetCostAndUsage and verify the role trust policy" {
 		t.Fatalf("error = %q", got)
+	}
+	if execution == nil {
+		t.Fatal("error execution metadata is nil")
+	}
+	if execution.CacheStatus() != cache.ResultMiss || execution.Pages != 1 || execution.CacheTTL != time.Minute {
+		t.Fatalf("unexpected error execution metadata: %+v", execution)
+	}
+}
+
+func TestServiceDetectsEstimatedResultsAcrossPages(t *testing.T) {
+	client := &mockClient{}
+	client.handler = func(input *awscostexplorer.GetCostAndUsageInput) (*awscostexplorer.GetCostAndUsageOutput, error) {
+		if input.NextPageToken == nil {
+			return &awscostexplorer.GetCostAndUsageOutput{
+				NextPageToken: aws.String("page-2"),
+				ResultsByTime: []types.ResultByTime{result("2026-07-01", "1.00")},
+			}, nil
+		}
+		estimated := result("2026-07-02", "2.00")
+		estimated.Estimated = true
+		return &awscostexplorer.GetCostAndUsageOutput{
+			ResultsByTime: []types.ResultByTime{estimated},
+		}, nil
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	execution, err := service.Execute(
+		context.Background(),
+		validSettings(),
+		validQuery(),
+		models.DateRange{Start: "2026-07-01", End: "2026-07-03"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !execution.ContainsEstimatedData || execution.Pages != 2 {
+		t.Fatalf("unexpected execution metadata: %+v", execution)
+	}
+
+	cached, err := service.Execute(
+		context.Background(),
+		validSettings(),
+		validQuery(),
+		models.DateRange{Start: "2026-07-01", End: "2026-07-03"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cached.ContainsEstimatedData || cached.CacheStatus() != cache.ResultHit {
+		t.Fatalf("unexpected cached execution metadata: %+v", cached)
 	}
 }
 

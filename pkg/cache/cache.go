@@ -14,21 +14,46 @@ const (
 	ResultHit    Result = "hit"
 	ResultMiss   Result = "miss"
 	ResultShared Result = "shared"
+	ResultBypass Result = "bypass"
 )
+
+// Details describes how a cache lookup was resolved without exposing its key.
+// Shared in-flight loads are kept distinct here so callers can observe
+// deduplication, while user-facing metadata can map them to a hit.
+type Details struct {
+	Result Result
+	Age    time.Duration
+	TTL    time.Duration
+}
+
+// MetadataStatus returns the stable cache status exposed to Grafana users.
+// Waiting on an identical in-flight load is equivalent to a cache hit for the
+// caller because it does not issue another upstream request.
+func (d Details) MetadataStatus() Result {
+	switch d.Result {
+	case ResultHit, ResultShared:
+		return ResultHit
+	case ResultMiss:
+		return ResultMiss
+	default:
+		return ResultBypass
+	}
+}
 
 type Loader func(context.Context) (any, error)
 
 // Cache allows the initial in-memory implementation to be replaced by a
 // persistent or distributed implementation without changing query execution.
 type Cache interface {
-	GetOrLoad(context.Context, string, Loader) (any, Result, error)
+	GetOrLoad(context.Context, string, Loader) (any, Details, error)
 	Len() int
 }
 
 type entry struct {
-	key       string
-	value     any
-	expiresAt time.Time
+	key        string
+	value      any
+	insertedAt time.Time
+	expiresAt  time.Time
 }
 
 type flight struct {
@@ -67,22 +92,28 @@ func NewMemory(ttl time.Duration, maxEntries int) (*Memory, error) {
 	}, nil
 }
 
-func (c *Memory) GetOrLoad(ctx context.Context, key string, loader Loader) (any, Result, error) {
+func (c *Memory) GetOrLoad(ctx context.Context, key string, loader Loader) (any, Details, error) {
+	details := Details{Result: ResultMiss, TTL: c.ttl}
 	if key == "" {
-		return nil, ResultMiss, fmt.Errorf("cache key must not be empty")
+		return nil, details, fmt.Errorf("cache key must not be empty")
 	}
 	if loader == nil {
-		return nil, ResultMiss, fmt.Errorf("cache loader must not be nil")
+		return nil, details, fmt.Errorf("cache loader must not be nil")
 	}
 
 	c.mu.Lock()
 	if element, ok := c.entries[key]; ok {
 		item := element.Value.(*entry)
-		if c.now().Before(item.expiresAt) {
+		now := c.now()
+		if now.Before(item.expiresAt) {
 			c.lru.MoveToFront(element)
 			value := item.value
+			age := now.Sub(item.insertedAt)
+			if age < 0 {
+				age = 0
+			}
 			c.mu.Unlock()
-			return value, ResultHit, nil
+			return value, Details{Result: ResultHit, Age: age, TTL: c.ttl}, nil
 		}
 		c.removeElement(element)
 	}
@@ -91,9 +122,9 @@ func (c *Memory) GetOrLoad(ctx context.Context, key string, loader Loader) (any,
 		c.mu.Unlock()
 		select {
 		case <-ctx.Done():
-			return nil, ResultShared, ctx.Err()
+			return nil, Details{Result: ResultShared, TTL: c.ttl}, ctx.Err()
 		case <-pending.done:
-			return pending.value, ResultShared, pending.err
+			return pending.value, Details{Result: ResultShared, TTL: c.ttl}, pending.err
 		}
 	}
 
@@ -113,7 +144,7 @@ func (c *Memory) GetOrLoad(ctx context.Context, key string, loader Loader) (any,
 	close(pending.done)
 	c.mu.Unlock()
 
-	return value, ResultMiss, err
+	return value, details, err
 }
 
 func (c *Memory) Len() int {
@@ -125,18 +156,21 @@ func (c *Memory) Len() int {
 }
 
 func (c *Memory) insert(key string, value any) {
+	now := c.now()
 	if existing, ok := c.entries[key]; ok {
 		item := existing.Value.(*entry)
 		item.value = value
-		item.expiresAt = c.now().Add(c.ttl)
+		item.insertedAt = now
+		item.expiresAt = now.Add(c.ttl)
 		c.lru.MoveToFront(existing)
 		return
 	}
 
 	element := c.lru.PushFront(&entry{
-		key:       key,
-		value:     value,
-		expiresAt: c.now().Add(c.ttl),
+		key:        key,
+		value:      value,
+		insertedAt: now,
+		expiresAt:  now.Add(c.ttl),
 	})
 	c.entries[key] = element
 

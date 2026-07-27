@@ -120,11 +120,15 @@ func (d *Datasource) query(ctx context.Context, query backend.DataQuery) backend
 
 	execution, err := d.service.Execute(awsContext, d.settings, model, dateRange)
 	if err != nil {
-		logger.Error(
-			"Cost Explorer query failed",
-			"duration_ms", time.Since(started).Milliseconds(),
-			"error", err,
+		failedAt := time.Now()
+		metadata := NewQueryExecutionMetadata(
+			execution,
+			failedAt,
+			failedAt.Sub(started),
+			model.IncludeIncompletePeriod,
 		)
+		fields := append(metadata.LogFields(), "error_category", "aws_cost_explorer_request_failed")
+		logger.Error("Cost Explorer query failed", fields...)
 		status := backend.StatusBadGateway
 		if awsContext.Err() == context.DeadlineExceeded {
 			status = backend.StatusTimeout
@@ -141,17 +145,19 @@ func (d *Datasource) query(ctx context.Context, query backend.DataQuery) backend
 		frame.RefID = query.RefID
 	}
 
-	logger.Info(
-		"Cost Explorer query completed",
-		"duration_ms", time.Since(started).Milliseconds(),
-		"aws_duration_ms", execution.AWSDuration.Milliseconds(),
-		"cache", execution.CacheResult,
-		"pages", execution.Pages,
-		"frame_count", len(resultFrames),
+	completedAt := time.Now()
+	metadata := NewQueryExecutionMetadata(
+		execution,
+		completedAt,
+		completedAt.Sub(started),
+		model.IncludeIncompletePeriod,
 	)
+	AttachQueryExecutionMetadata(resultFrames, metadata)
+
+	fields := append(metadata.LogFields(), "frame_count", len(resultFrames))
+	logger.Info("Cost Explorer query completed", fields...)
 	logger.Debug(
-		"Cost Explorer cache result",
-		"cache", execution.CacheResult,
+		"Cost Explorer cache configuration",
 		"maximum_entries", d.settings.CacheMaxEntries,
 		"ttl_seconds", d.settings.CacheTTLSeconds,
 	)
@@ -203,7 +209,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 		"Cost Explorer health check completed",
 		"region", d.settings.Region,
 		"auth_mode", d.settings.AuthMode,
-		"cache", execution.CacheResult,
+		"cache", execution.CacheStatus(),
 		"aws_duration_ms", execution.AWSDuration.Milliseconds(),
 	)
 	return &backend.CheckHealthResult{
@@ -212,7 +218,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 			"Connected to AWS Cost Explorer in %s using %s credentials (cache %s)",
 			d.settings.Region,
 			d.settings.AuthMode,
-			execution.CacheResult,
+			execution.CacheStatus(),
 		),
 	}, nil
 }
