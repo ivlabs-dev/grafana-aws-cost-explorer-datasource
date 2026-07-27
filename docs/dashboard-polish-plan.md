@@ -49,13 +49,13 @@ feature branch starts from the shared-foundation commit on that branch.
 The version remains `1`; adding optional fields does not require a migration.
 Legacy JSON is normalized to the following defaults:
 
-| JSON field | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `includeIncompletePeriod` | boolean | `false` | Include the current UTC billing day/month. |
-| `topN` | integer | `0` | Allowed values: `0`, `5`, `10`, `20`. |
-| `includeOther` | boolean | `true` | Used only when grouped and `topN > 0`. |
-| `alignMonthlyToCalendar` | boolean | `true` | Used only for monthly queries. |
-| `rangeMode` | string | `dashboard` | Narrow modes: `dashboard`, `monthToDate`, `previousEquivalentPeriod`. |
+| JSON field                | Type    | Default     | Notes                                                                 |
+| ------------------------- | ------- | ----------- | --------------------------------------------------------------------- |
+| `includeIncompletePeriod` | boolean | `false`     | Include the current UTC billing day/month.                            |
+| `topN`                    | integer | `0`         | Allowed values: `0`, `5`, `10`, `20`.                                 |
+| `includeOther`            | boolean | `true`      | Used only when grouped and `topN > 0`.                                |
+| `alignMonthlyToCalendar`  | boolean | `true`      | Used only for monthly queries.                                        |
+| `rangeMode`               | string  | `dashboard` | Narrow modes: `dashboard`, `monthToDate`, `previousEquivalentPeriod`. |
 
 Go uses optional boolean pointers for the two true-by-default values so an
 absent legacy field can be distinguished from an explicit `false`. Helper
@@ -142,14 +142,14 @@ alignment enabled.
 Shared files are changed only in the foundation phase or by the lead during
 integration:
 
-| Owner | Files |
-| --- | --- |
-| Shared foundation / lead | `pkg/models/query.go`, `pkg/models/query_test.go`, `src/types.ts`, `src/types.test.ts`, `src/options.ts` |
-| Lead final wiring | `pkg/frames/frames.go`, `src/components/QueryEditor.tsx`, `src/components/QueryEditor.test.tsx`, cross-feature tests, `README.md` |
-| Period semantics agent | `pkg/models/period.go`, `pkg/models/period_test.go`, `pkg/frames/period.go`, `pkg/frames/period_test.go`, `src/components/PeriodOptions.tsx`, `src/components/PeriodOptions.test.tsx` |
-| Group presentation agent | `pkg/frames/groups.go`, `pkg/frames/groups_test.go`, `src/components/GroupLimitOptions.tsx`, `src/components/GroupLimitOptions.test.tsx` |
-| Query metadata agent | `pkg/cache/cache.go`, `pkg/cache/cache_test.go`, `pkg/costexplorer/service.go`, `pkg/costexplorer/service_test.go`, `pkg/plugin/datasource.go`, `pkg/plugin/datasource_test.go`, optional new metadata helper/test files |
-| Dashboard KPI agent | `provisioning/dashboards/json/aws-cost-explorer.json`, dashboard-only validation/smoke-test files |
+| Owner                    | Files                                                                                                                                                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Shared foundation / lead | `pkg/models/query.go`, `pkg/models/query_test.go`, `src/types.ts`, `src/types.test.ts`, `src/options.ts`                                                                                                                 |
+| Lead final wiring        | `pkg/frames/frames.go`, `src/components/QueryEditor.tsx`, `src/components/QueryEditor.test.tsx`, cross-feature tests, `README.md`                                                                                        |
+| Period semantics agent   | `pkg/models/period.go`, `pkg/models/period_test.go`, `pkg/frames/period.go`, `pkg/frames/period_test.go`, `src/components/PeriodOptions.tsx`, `src/components/PeriodOptions.test.tsx`                                    |
+| Group presentation agent | `pkg/frames/groups.go`, `pkg/frames/groups_test.go`, `src/components/GroupLimitOptions.tsx`, `src/components/GroupLimitOptions.test.tsx`                                                                                 |
+| Query metadata agent     | `pkg/cache/cache.go`, `pkg/cache/cache_test.go`, `pkg/costexplorer/service.go`, `pkg/costexplorer/service_test.go`, `pkg/plugin/datasource.go`, `pkg/plugin/datasource_test.go`, optional new metadata helper/test files |
+| Dashboard KPI agent      | `provisioning/dashboards/json/aws-cost-explorer.json`, dashboard-only validation/smoke-test files                                                                                                                        |
 
 Agents must not edit `pkg/frames/frames.go` or
 `src/components/QueryEditor.tsx`; they expose tested helpers/components for
