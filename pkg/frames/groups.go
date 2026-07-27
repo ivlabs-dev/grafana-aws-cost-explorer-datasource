@@ -275,7 +275,7 @@ func materializeSeries(items []*accumulatedSeries) ([]PreparedSeries, error) {
 		for _, period := range periods {
 			amount, _ := item.points[period].Float64()
 			if math.IsInf(amount, 0) || math.IsNaN(amount) {
-				return nil, fmt.Errorf("Cost Explorer amount cannot be represented as a Grafana number")
+				return nil, fmt.Errorf("cost explorer amount cannot be represented as a Grafana number")
 			}
 			points = append(points, PreparedPoint{PeriodStart: period, Amount: amount})
 		}
