@@ -50,6 +50,19 @@ func (fakeClient) GetCostAndUsage(
 	}, nil
 }
 
+type countingClient struct {
+	calls int
+}
+
+func (c *countingClient) GetCostAndUsage(
+	ctx context.Context,
+	input *awscostexplorer.GetCostAndUsageInput,
+	options ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetCostAndUsageOutput, error) {
+	c.calls++
+	return fakeClient{}.GetCostAndUsage(ctx, input, options...)
+}
+
 func TestQueryDataReturnsFrame(t *testing.T) {
 	datasource := newDatasource(
 		context.Background(),
@@ -99,7 +112,7 @@ func TestQueryDataReturnsFrame(t *testing.T) {
 		t.Fatal(err)
 	}
 	metadata = frameQueryMetadata(t, response.Responses["A"].Frames[0])
-	if metadata.CacheStatus != "hit" || metadata.CacheAgeSeconds == nil {
+	if metadata.CacheStatus != "hit" || metadata.CacheAgeSeconds == nil || metadata.PageCount != 0 {
 		t.Fatalf("unexpected cached query metadata: %+v", metadata)
 	}
 }
@@ -117,6 +130,126 @@ func TestCheckHealthResolvesCredentialsAndQueriesCostExplorer(t *testing.T) {
 	}
 	if result.Status != backend.HealthStatusOk {
 		t.Fatalf("health status = %s, message = %s", result.Status, result.Message)
+	}
+}
+
+func TestQueryWithNoCompletedPeriodsBypassesAWSAndReturnsNotice(t *testing.T) {
+	client := &countingClient{}
+	datasource := newDatasource(
+		context.Background(),
+		validInstanceSettings(),
+		fakeFactory{client: client},
+		log.NewNullLogger(),
+	)
+	now := time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC)
+	datasource.now = func() time.Time { return now }
+	queryJSON, _ := json.Marshal(models.Query{
+		Version:     models.QueryVersion,
+		Metric:      "UnblendedCost",
+		Granularity: models.GranularityDaily,
+		Format:      models.FormatTimeSeries,
+	})
+
+	response, err := datasource.QueryData(context.Background(), &backend.QueryDataRequest{
+		Queries: []backend.DataQuery{{
+			RefID: "A",
+			JSON:  queryJSON,
+			TimeRange: backend.TimeRange{
+				From: time.Date(2026, 7, 27, 0, 0, 0, 0, time.UTC),
+				To:   now,
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := response.Responses["A"]
+	if got.Error != nil || len(got.Frames) != 1 || got.Frames[0].Rows() != 0 {
+		t.Fatalf("unexpected empty-period response: %+v", got)
+	}
+	if client.calls != 0 {
+		t.Fatalf("AWS calls = %d, want zero", client.calls)
+	}
+	if got.Frames[0].Meta == nil || len(got.Frames[0].Meta.Notices) != 1 ||
+		got.Frames[0].Meta.Notices[0].Text != models.NoCompletedPeriodsNotice {
+		t.Fatalf("empty-period notice is missing: %+v", got.Frames[0].Meta)
+	}
+	metadata := frameQueryMetadata(t, got.Frames[0])
+	if metadata.CacheStatus != "bypass" || metadata.CacheTTLSeconds != 900 ||
+		metadata.PageCount != 0 || metadata.IncludesIncompletePeriod {
+		t.Fatalf("unexpected empty-period metadata: %+v", metadata)
+	}
+}
+
+func TestQueryMetadataUsesEffectiveIncompletePeriodDecision(t *testing.T) {
+	now := time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name           string
+		query          models.Query
+		from           time.Time
+		to             time.Time
+		wantIncomplete bool
+	}{
+		{
+			name: "month to date forces incomplete",
+			query: models.Query{
+				Version:     models.QueryVersion,
+				Metric:      "UnblendedCost",
+				Granularity: models.GranularityDaily,
+				Format:      models.FormatTimeSeries,
+				RangeMode:   models.RangeModeMonthToDate,
+			},
+			from:           time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC),
+			to:             now,
+			wantIncomplete: true,
+		},
+		{
+			name: "historical include flag has no incomplete period",
+			query: models.Query{
+				Version:                 models.QueryVersion,
+				Metric:                  "UnblendedCost",
+				Granularity:             models.GranularityDaily,
+				Format:                  models.FormatTimeSeries,
+				IncludeIncompletePeriod: true,
+			},
+			from: time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC),
+			to:   time.Date(2026, 7, 2, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			datasource := newDatasource(
+				context.Background(),
+				validInstanceSettings(),
+				fakeFactory{client: fakeClient{}},
+				log.NewNullLogger(),
+			)
+			datasource.now = func() time.Time { return now }
+			queryJSON, _ := json.Marshal(test.query)
+			response, err := datasource.QueryData(context.Background(), &backend.QueryDataRequest{
+				Queries: []backend.DataQuery{{
+					RefID:     "A",
+					JSON:      queryJSON,
+					TimeRange: backend.TimeRange{From: test.from, To: test.to},
+				}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := response.Responses["A"]
+			if got.Error != nil || len(got.Frames) != 1 {
+				t.Fatalf("unexpected query response: %+v", got)
+			}
+			metadata := frameQueryMetadata(t, got.Frames[0])
+			if metadata.IncludesIncompletePeriod != test.wantIncomplete {
+				t.Fatalf(
+					"includesIncompletePeriod = %v, want %v",
+					metadata.IncludesIncompletePeriod,
+					test.wantIncomplete,
+				)
+			}
+		})
 	}
 }
 
@@ -153,8 +286,12 @@ func TestQueryErrorLogsSafeExecutionMetadata(t *testing.T) {
 	if got.Error == nil || got.Status != backend.StatusBadGateway {
 		t.Fatalf("unexpected error response: %+v", got)
 	}
-	if len(got.Frames) != 0 {
-		t.Fatalf("AWS error returned metadata frames: %+v", got.Frames)
+	if len(got.Frames) != 1 {
+		t.Fatalf("AWS error metadata frames = %d, want one", len(got.Frames))
+	}
+	errorMetadata := frameQueryMetadata(t, got.Frames[0])
+	if errorMetadata.CacheStatus != "miss" || errorMetadata.PageCount != 1 {
+		t.Fatalf("unexpected AWS error metadata: %+v", errorMetadata)
 	}
 	if strings.Contains(got.Error.Error(), secret) {
 		t.Fatalf("query error exposed secret: %v", got.Error)

@@ -65,11 +65,13 @@ func PrepareResults(query models.Query, output *awscostexplorer.GetCostAndUsageO
 	}
 
 	byIdentity := make(map[string]*accumulatedSeries)
+	allPeriods := make(map[time.Time]struct{})
 	for _, period := range output.ResultsByTime {
-		start, err := periodStart(period)
+		start, err := BillingPeriodStartUTC(period)
 		if err != nil {
 			return nil, err
 		}
+		allPeriods[start] = struct{}{}
 		for _, group := range period.Groups {
 			metric, ok := group.Metrics[query.Metric]
 			if !ok {
@@ -106,7 +108,7 @@ func PrepareResults(query models.Query, output *awscostexplorer.GetCostAndUsageO
 		items = append(items, item)
 	}
 	if query.TopN > 0 {
-		items = limitGroups(items, query.TopN, query.IncludeOtherValue(), len(query.GroupBy))
+		items = limitGroups(items, query.TopN, query.IncludeOtherValue(), len(query.GroupBy), allPeriods)
 	} else {
 		sort.Slice(items, func(left, right int) bool {
 			return items[left].identity < items[right].identity
@@ -135,7 +137,7 @@ func prepareUngroupedResults(
 		if !ok {
 			continue
 		}
-		start, err := periodStart(period)
+		start, err := BillingPeriodStartUTC(period)
 		if err != nil {
 			return nil, err
 		}
@@ -198,6 +200,7 @@ func limitGroups(
 	topN int,
 	includeOther bool,
 	dimensionCount int,
+	allPeriods map[time.Time]struct{},
 ) []*accumulatedSeries {
 	byUnit := make(map[string][]*accumulatedSeries)
 	for _, item := range items {
@@ -245,6 +248,11 @@ func limitGroups(
 			other.total.Add(other.total, item.total)
 			for period, amount := range item.points {
 				addExact(other.points, period, amount)
+			}
+		}
+		for period := range allPeriods {
+			if other.points[period] == nil {
+				other.points[period] = new(big.Rat)
 			}
 		}
 		limited = append(limited, other)

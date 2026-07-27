@@ -81,8 +81,42 @@ func TestServicePaginationAndCache(t *testing.T) {
 	if second.AWSDuration != 0 {
 		t.Fatalf("cache hit AWS duration = %s, want zero", second.AWSDuration)
 	}
+	if second.Pages != 0 {
+		t.Fatalf("cache hit pages = %d, want zero pages fetched for this request", second.Pages)
+	}
 	if client.calls != 2 {
 		t.Fatalf("AWS calls = %d, want two pages from one logical request", client.calls)
+	}
+}
+
+func TestCacheKeyIgnoresPresentationOnlyOptions(t *testing.T) {
+	query := validQuery()
+	query.GroupBy = []string{"SERVICE"}
+	query.ApplyDefaults()
+	dateRange := models.DateRange{Start: "2026-07-01", End: "2026-07-03"}
+
+	first, err := CacheKey("default:us-east-1", query, dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query.Format = models.FormatTable
+	query.TopN = 5
+	query.IncludeOther = aws.Bool(false)
+	second, err := CacheKey("default:us-east-1", query, dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second {
+		t.Fatal("presentation-only options caused an unnecessary AWS cache miss")
+	}
+
+	query.Filter.Service = "Amazon S3"
+	third, err := CacheKey("default:us-east-1", query, dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if third == first {
+		t.Fatal("an upstream AWS filter change did not change the cache key")
 	}
 }
 

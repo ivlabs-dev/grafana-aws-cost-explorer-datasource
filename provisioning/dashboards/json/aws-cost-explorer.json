@@ -281,7 +281,7 @@
           "values": false
         },
         "showPercentChange": false,
-        "textMode": "value_and_name",
+        "textMode": "name",
         "wideLayout": true
       },
       "targets": [

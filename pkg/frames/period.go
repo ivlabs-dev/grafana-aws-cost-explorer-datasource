@@ -29,12 +29,19 @@ func BillingPeriodLabel(granularity string, period types.ResultByTime) (string, 
 	if err != nil {
 		return "", err
 	}
+	if granularity != models.GranularityDaily && granularity != models.GranularityMonthly {
+		return "", fmt.Errorf("format billing period for unsupported granularity %q", granularity)
+	}
+	return FormatBillingPeriodLabel(granularity, start), nil
+}
+
+func FormatBillingPeriodLabel(granularity string, start time.Time) string {
 	switch granularity {
 	case models.GranularityDaily:
-		return start.Format(time.DateOnly), nil
+		return start.UTC().Format(time.DateOnly)
 	case models.GranularityMonthly:
-		return start.Format("2006-01"), nil
+		return start.UTC().Format("2006-01")
 	default:
-		return "", fmt.Errorf("format billing period for unsupported granularity %q", granularity)
+		return ""
 	}
 }

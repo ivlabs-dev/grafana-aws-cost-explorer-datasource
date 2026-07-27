@@ -64,6 +64,17 @@ func TestQueryValidation(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "internal top one",
+			query: Query{
+				Version: QueryVersion, Metric: "UnblendedCost",
+				Granularity: GranularityDaily,
+				GroupBy:     []string{"SERVICE"},
+				Format:      FormatTimeSeries,
+				TopN:        1,
+				RangeMode:   RangeModeDashboard,
+			},
+		},
+		{
 			name: "top N without grouping",
 			query: Query{
 				Version: QueryVersion, Metric: "UnblendedCost",

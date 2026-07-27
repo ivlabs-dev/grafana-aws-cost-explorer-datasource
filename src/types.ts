@@ -15,7 +15,9 @@ export type GroupBy =
   | 'OPERATION'
   | 'AVAILABILITY_ZONE';
 export type ResultFormat = 'timeSeries' | 'table';
-export type TopN = 0 | 5 | 10 | 20;
+// Top 1 is reserved for provisioned/internal queries such as the highest-cost
+// service KPI. The visual query editor intentionally offers only 0/5/10/20.
+export type TopN = 0 | 1 | 5 | 10 | 20;
 export type QueryRangeMode = 'dashboard' | 'monthToDate' | 'previousEquivalentPeriod';
 
 export interface CostFilter {

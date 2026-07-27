@@ -116,9 +116,9 @@ func (q Query) Validate() error {
 		return fmt.Errorf("AWS Cost Explorer supports at most two group-by dimensions")
 	}
 	switch q.TopN {
-	case 0, 5, 10, 20:
+	case 0, 1, 5, 10, 20:
 	default:
-		return fmt.Errorf("top N must be one of 0, 5, 10, or 20")
+		return fmt.Errorf("top N must be one of 0, 1, 5, 10, or 20")
 	}
 	if q.TopN > 0 && len(q.GroupBy) == 0 {
 		return fmt.Errorf("top N requires at least one group-by dimension")

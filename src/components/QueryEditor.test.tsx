@@ -17,6 +17,15 @@ jest.mock('@grafana/ui', () => ({
     </div>
   ),
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  Switch: ({
+    id,
+    onChange,
+    value,
+  }: {
+    id: string;
+    onChange: React.ChangeEventHandler<HTMLInputElement>;
+    value: boolean;
+  }) => <input id={id} type="checkbox" checked={value} onChange={onChange} />,
   Combobox: ({
     disabled,
     id,
@@ -75,6 +84,8 @@ describe('QueryEditor', () => {
     expect(screen.getByLabelText('Granularity')).toHaveValue('DAILY');
     expect(screen.getByLabelText('Group by 2')).toBeDisabled();
     expect(screen.getByLabelText('Result format')).toHaveValue('timeSeries');
+    expect(screen.getByLabelText('Include incomplete current period')).not.toBeChecked();
+    expect(screen.queryByLabelText('Limit groups')).not.toBeInTheDocument();
   });
 
   it('changes metric and granularity', () => {
@@ -109,5 +120,29 @@ describe('QueryEditor', () => {
 
     fireEvent.change(screen.getByLabelText('Result format'), { target: { value: 'table' } });
     expect(first.onChange).toHaveBeenLastCalledWith(expect.objectContaining({ format: 'table' }));
+  });
+
+  it('clears a hidden Top N value when grouping is removed', () => {
+    const view = renderEditor({ ...DEFAULT_QUERY, groupBy: ['SERVICE'], topN: 5 });
+
+    fireEvent.change(screen.getByLabelText('Group by 1'), { target: { value: '' } });
+
+    expect(view.onChange).toHaveBeenLastCalledWith(expect.objectContaining({ groupBy: [], topN: 0 }));
+  });
+
+  it('shows group limits and monthly period controls only when relevant', () => {
+    const view = renderEditor({
+      ...DEFAULT_QUERY,
+      granularity: 'MONTHLY',
+      groupBy: ['SERVICE'],
+      topN: 5,
+    });
+
+    expect(screen.getByLabelText('Limit groups')).toHaveValue('5');
+    expect(screen.getByLabelText('Combine remaining groups as Other')).toBeChecked();
+    expect(screen.getByLabelText('Align to complete calendar months')).toBeChecked();
+
+    fireEvent.click(screen.getByLabelText('Include incomplete current period'));
+    expect(view.onChange).toHaveBeenLastCalledWith(expect.objectContaining({ includeIncompletePeriod: true }));
   });
 });

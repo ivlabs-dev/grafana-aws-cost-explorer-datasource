@@ -95,15 +95,17 @@ func (s *Service) Execute(
 	}
 
 	awsDuration := time.Duration(0)
+	pages := 0
 	if cacheDetails.Result == cache.ResultMiss {
 		awsDuration = cached.AWSDuration
+		pages = cached.Pages
 	}
 	execution := &Execution{
 		Output:                cached.Output,
 		CacheResult:           cacheDetails.Result,
 		CacheAge:              cacheDetails.Age,
 		CacheTTL:              cacheDetails.TTL,
-		Pages:                 cached.Pages,
+		Pages:                 pages,
 		AWSDuration:           awsDuration,
 		ContainsEstimatedData: containsEstimatedData(cached.Output),
 	}
@@ -171,14 +173,25 @@ func BuildInput(query models.Query, dateRange models.DateRange) (*awscostexplore
 }
 
 func CacheKey(credentialContext string, query models.Query, dateRange models.DateRange) (string, error) {
+	upstreamQuery := struct {
+		Metric      string             `json:"metric"`
+		Granularity string             `json:"granularity"`
+		GroupBy     []string           `json:"groupBy,omitempty"`
+		Filter      models.QueryFilter `json:"filter,omitempty"`
+	}{
+		Metric:      query.Metric,
+		Granularity: query.Granularity,
+		GroupBy:     query.GroupBy,
+		Filter:      query.Filter,
+	}
 	payload := struct {
 		CredentialContext string           `json:"credentialContext"`
 		DateRange         models.DateRange `json:"dateRange"`
-		Query             models.Query     `json:"query"`
+		Query             any              `json:"query"`
 	}{
 		CredentialContext: credentialContext,
 		DateRange:         dateRange,
-		Query:             query,
+		Query:             upstreamQuery,
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {

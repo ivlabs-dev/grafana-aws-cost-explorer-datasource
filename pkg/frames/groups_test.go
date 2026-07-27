@@ -172,6 +172,31 @@ func TestPrepareResultsOtherIsAggregatedExactlyPerPeriod(t *testing.T) {
 	}
 }
 
+func TestPrepareResultsOtherIncludesZeroForEveryReturnedPeriod(t *testing.T) {
+	query := presentationQuery()
+	query.GroupBy = []string{"SERVICE"}
+	query.TopN = 1
+	output := &awscostexplorer.GetCostAndUsageOutput{
+		ResultsByTime: []types.ResultByTime{
+			presentationPeriod("2026-07-01",
+				presentationGroup([]string{"top"}, "10", "USD"),
+				presentationGroup([]string{"remainder"}, "1", "USD"),
+			),
+			presentationPeriod("2026-07-02",
+				presentationGroup([]string{"top"}, "10", "USD"),
+			),
+		},
+	}
+
+	result := mustPrepareResults(t, query, output)
+	if len(result) != 2 || !result[1].IsOther {
+		t.Fatalf("expected Top 1 and Other, got %#v", result)
+	}
+	if got := result[1].Points; len(got) != 2 || got[0].Amount != 1 || got[1].Amount != 0 {
+		t.Fatalf("Other points = %#v, want 1 then 0", got)
+	}
+}
+
 func TestPrepareResultsTopNWithoutOtherDropsRemainingGroups(t *testing.T) {
 	query := presentationQuery()
 	query.GroupBy = []string{"SERVICE"}

@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	awscostexplorer "github.com/aws/aws-sdk-go-v2/service/costexplorer"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
+	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/awsclient"
 	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/cache"
 	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/costexplorer"
@@ -30,6 +32,7 @@ type Datasource struct {
 	resolveCredentials func(context.Context) error
 	initializationErr  error
 	logger             log.Logger
+	now                func() time.Time
 }
 
 func NewDatasource(ctx context.Context, source backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
@@ -42,7 +45,10 @@ func newDatasource(
 	factory awsclient.Factory,
 	logger log.Logger,
 ) *Datasource {
-	datasource := &Datasource{logger: logger.With("datasource_uid", source.UID)}
+	datasource := &Datasource{
+		logger: logger.With("datasource_uid", source.UID),
+		now:    time.Now,
+	}
 
 	settings, err := models.LoadPluginSettings(source)
 	if err != nil {
@@ -91,7 +97,7 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 }
 
 func (d *Datasource) query(ctx context.Context, query backend.DataQuery) backend.DataResponse {
-	started := time.Now()
+	started := d.now()
 	logger := d.logger.FromContext(ctx).With("ref_id", query.RefID)
 
 	if d.initializationErr != nil {
@@ -110,22 +116,63 @@ func (d *Datasource) query(ctx context.Context, query backend.DataQuery) backend
 		return backend.ErrDataResponse(backend.StatusValidationFailed, err.Error())
 	}
 
-	dateRange, err := models.CostExplorerDateRange(query.TimeRange.From, query.TimeRange.To)
+	resolved, err := models.ResolveCostExplorerDateRange(
+		model,
+		query.TimeRange.From,
+		query.TimeRange.To,
+		started,
+	)
 	if err != nil {
 		return backend.ErrDataResponse(backend.StatusValidationFailed, err.Error())
+	}
+
+	if resolved.Empty {
+		resultFrames, convertErr := frames.Convert(model, &awscostexplorer.GetCostAndUsageOutput{})
+		if convertErr != nil {
+			return backend.ErrDataResponse(
+				backend.StatusInternal,
+				fmt.Sprintf("create empty AWS Cost Explorer data frames: %v", convertErr),
+			)
+		}
+		for _, frame := range resultFrames {
+			frame.RefID = query.RefID
+			if frame.Meta == nil {
+				frame.Meta = &data.FrameMeta{}
+			}
+			frame.Meta.Notices = append(frame.Meta.Notices, data.Notice{
+				Severity: data.NoticeSeverityInfo,
+				Text:     models.NoCompletedPeriodsNotice,
+			})
+		}
+
+		completedAt := d.now()
+		execution := &costexplorer.Execution{
+			CacheResult: cache.ResultBypass,
+			CacheTTL:    time.Duration(d.settings.CacheTTLSeconds) * time.Second,
+		}
+		metadata := NewQueryExecutionMetadata(
+			execution,
+			completedAt,
+			completedAt.Sub(started),
+			false,
+		)
+		AttachQueryExecutionMetadata(resultFrames, metadata)
+		fields := append(metadata.LogFields(), "frame_count", len(resultFrames))
+		logger.Info("Cost Explorer query completed without an AWS request", fields...)
+		return backend.DataResponse{Status: backend.StatusOK, Frames: resultFrames}
 	}
 
 	awsContext, cancel := context.WithTimeout(ctx, awsRequestTimeout)
 	defer cancel()
 
-	execution, err := d.service.Execute(awsContext, d.settings, model, dateRange)
+	execution, err := d.service.Execute(awsContext, d.settings, model, resolved.DateRange)
 	if err != nil {
-		failedAt := time.Now()
+		failedAt := d.now()
 		metadata := NewQueryExecutionMetadata(
 			execution,
 			failedAt,
 			failedAt.Sub(started),
-			model.IncludeIncompletePeriod,
+			resolved.IncludesIncompletePeriod,
 		)
 		fields := append(metadata.LogFields(), "error_category", "aws_cost_explorer_request_failed")
 		logger.Error("Cost Explorer query failed", fields...)
@@ -133,7 +180,16 @@ func (d *Datasource) query(ctx context.Context, query backend.DataQuery) backend
 		if awsContext.Err() == context.DeadlineExceeded {
 			status = backend.StatusTimeout
 		}
-		return backend.ErrDataResponse(status, err.Error())
+		errorResponse := backend.ErrDataResponse(status, err.Error())
+		errorFrames, frameErr := frames.Convert(model, &awscostexplorer.GetCostAndUsageOutput{})
+		if frameErr == nil {
+			for _, frame := range errorFrames {
+				frame.RefID = query.RefID
+			}
+			AttachQueryExecutionMetadata(errorFrames, metadata)
+			errorResponse.Frames = errorFrames
+		}
+		return errorResponse
 	}
 
 	resultFrames, err := frames.Convert(model, execution.Output)
@@ -145,12 +201,12 @@ func (d *Datasource) query(ctx context.Context, query backend.DataQuery) backend
 		frame.RefID = query.RefID
 	}
 
-	completedAt := time.Now()
+	completedAt := d.now()
 	metadata := NewQueryExecutionMetadata(
 		execution,
 		completedAt,
 		completedAt.Sub(started),
-		model.IncludeIncompletePeriod,
+		resolved.IncludesIncompletePeriod,
 	)
 	AttachQueryExecutionMetadata(resultFrames, metadata)
 
@@ -185,7 +241,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 		return healthError(classified), nil
 	}
 
-	now := time.Now().UTC()
+	now := d.now().UTC()
 	to := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	from := to.AddDate(0, 0, -1)
 	dateRange, err := models.CostExplorerDateRange(from, to)
