@@ -5,7 +5,7 @@
   "id": "ivlabsdev-awscostexplorer-datasource",
   "metrics": true,
   "backend": true,
-  "state": "alpha",
+  "state": "beta",
   "executable": "gpx_aws_cost_explorer",
   "info": {
     "description": "Query AWS Cost Explorer directly with a visual query editor and server-side caching.",
