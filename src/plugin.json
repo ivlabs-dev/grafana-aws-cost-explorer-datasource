@@ -24,7 +24,20 @@
         "url": "https://github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource"
       }
     ],
-    "screenshots": [],
+    "screenshots": [
+      {
+        "name": "AWS Cost Explorer dashboard",
+        "path": "img/aws-cost-explorer-dashboard.png"
+      },
+      {
+        "name": "Visual query editor",
+        "path": "img/aws-cost-explorer-query-editor.png"
+      },
+      {
+        "name": "Query Inspector cache and freshness metadata",
+        "path": "img/aws-cost-explorer-query-inspector.png"
+      }
+    ],
     "version": "%VERSION%",
     "updated": "%TODAY%"
   },
