@@ -133,6 +133,52 @@ func TestCheckHealthResolvesCredentialsAndQueriesCostExplorer(t *testing.T) {
 	}
 }
 
+func TestCheckHealthDoesNotExposeAWSErrors(t *testing.T) {
+	const detail = "internal AWS error detail"
+	tests := []struct {
+		name    string
+		factory fakeFactory
+		want    string
+	}{
+		{
+			name: "credential resolution",
+			factory: fakeFactory{
+				client:     fakeClient{},
+				resolveErr: errors.New(detail),
+			},
+			want: credentialHealthFailureMessage,
+		},
+		{
+			name: "Cost Explorer request",
+			factory: fakeFactory{
+				client: errorClient{err: errors.New(detail)},
+			},
+			want: costExplorerHealthFailureMessage,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			datasource := newDatasource(
+				context.Background(),
+				validInstanceSettings(),
+				test.factory,
+				log.NewNullLogger(),
+			)
+			result, err := datasource.CheckHealth(context.Background(), &backend.CheckHealthRequest{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Status != backend.HealthStatusError || result.Message != test.want {
+				t.Fatalf("unexpected health result: %+v", result)
+			}
+			if strings.Contains(result.Message, detail) {
+				t.Fatalf("health response exposed AWS error detail: %s", result.Message)
+			}
+		})
+	}
+}
+
 func TestQueryWithNoCompletedPeriodsBypassesAWSAndReturnsNotice(t *testing.T) {
 	client := &countingClient{}
 	datasource := newDatasource(
@@ -412,11 +458,14 @@ func validInstanceSettings() backend.DataSourceInstanceSettings {
 	return backend.DataSourceInstanceSettings{
 		UID: "test",
 		JSONData: []byte(`{
-			"authMode": "default",
+			"authMode": "static",
 			"region": "us-east-1",
 			"cacheTTLSeconds": 900,
 			"cacheMaxEntries": 256
 		}`),
-		DecryptedSecureJSONData: map[string]string{},
+		DecryptedSecureJSONData: map[string]string{
+			"accessKeyId":     "test-access-key",
+			"secretAccessKey": "test-secret",
+		},
 	}
 }

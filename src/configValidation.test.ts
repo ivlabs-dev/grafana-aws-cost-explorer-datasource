@@ -1,16 +1,19 @@
 import { validateConfig } from './configValidation';
 
 describe('validateConfig', () => {
-  it('accepts the default credential chain configuration', () => {
+  it('accepts explicitly configured static credentials', () => {
     expect(
       validateConfig({
         jsonData: {
-          authMode: 'default',
+          authMode: 'static',
           region: 'us-east-1',
           cacheTTLSeconds: 900,
           cacheMaxEntries: 256,
         },
-        secureJsonData: {},
+        secureJsonData: {
+          accessKeyId: 'test-access-key',
+          secretAccessKey: 'test-secret',
+        },
         secureJsonFields: {},
       })
     ).toEqual({});
@@ -31,6 +34,7 @@ describe('validateConfig', () => {
     });
     expect(assumeRole.roleArn).toBeDefined();
     expect(assumeRole.roleSessionName).toBeDefined();
+    expect(assumeRole.credentials).toBeDefined();
 
     const staticConfig = validateConfig({
       jsonData: {
@@ -42,7 +46,7 @@ describe('validateConfig', () => {
       secureJsonData: {},
       secureJsonFields: {},
     });
-    expect(staticConfig.static).toBeDefined();
+    expect(staticConfig.credentials).toBeDefined();
   });
 
   it('recognizes already-configured secure fields', () => {
@@ -56,7 +60,24 @@ describe('validateConfig', () => {
         },
         secureJsonData: {},
         secureJsonFields: { accessKeyId: true, secretAccessKey: true },
-      }).static
+      }).credentials
     ).toBeUndefined();
+  });
+
+  it('requires explicit source credentials for AssumeRole', () => {
+    const errors = validateConfig({
+      jsonData: {
+        authMode: 'assumeRole',
+        region: 'us-east-1',
+        roleArn: 'arn:aws:iam::123456789012:role/GrafanaCostExplorer',
+        roleSessionName: 'grafana-cost-explorer',
+        cacheTTLSeconds: 900,
+        cacheMaxEntries: 256,
+      },
+      secureJsonData: {},
+      secureJsonFields: {},
+    });
+
+    expect(errors.credentials).toBe('A source access key ID and secret access key are required.');
   });
 });

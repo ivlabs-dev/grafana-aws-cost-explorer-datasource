@@ -216,11 +216,14 @@ func TestBuildInputMapsFiltersAndAvailabilityZone(t *testing.T) {
 
 func validSettings() models.PluginSettings {
 	return models.PluginSettings{
-		AuthMode:        models.AuthModeDefault,
+		AuthMode:        models.AuthModeStatic,
 		Region:          "us-east-1",
 		CacheTTLSeconds: models.DefaultCacheTTLSeconds,
 		CacheMaxEntries: models.DefaultCacheMaxEntries,
-		Secrets:         &models.SecretPluginSettings{},
+		Secrets: &models.SecretPluginSettings{
+			AccessKeyID:     "test-access-key",
+			SecretAccessKey: "test-secret",
+		},
 	}
 }
 

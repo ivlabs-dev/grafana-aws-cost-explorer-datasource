@@ -10,7 +10,11 @@ datasources:
     version: 1
     editable: true
     jsonData:
-      authMode: 'default'
+      authMode: 'static'
       region: 'us-east-1'
       cacheTTLSeconds: 900
       cacheMaxEntries: 256
+    secureJsonData:
+      accessKeyId: '$AWS_ACCESS_KEY_ID'
+      secretAccessKey: '$AWS_SECRET_ACCESS_KEY'
+      sessionToken: '$AWS_SESSION_TOKEN'

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.5 (2026-08-19)
+
+- Remove the AWS SDK default credential-chain authentication mode.
+- Require explicitly configured source credentials for AssumeRole.
+- Return generic health-check failures to the browser while retaining
+  diagnostic errors in backend logs.
+
 ## 1.0.0 (Unreleased)
 
 - Add AWS SDK v2 default, AssumeRole, and secure static authentication.

@@ -6,7 +6,7 @@ const roleArnPattern =
 const regionPattern = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
 export type ConfigErrors = Partial<
-  Record<'region' | 'roleArn' | 'roleSessionName' | 'cacheTTL' | 'cacheMax' | 'static', string>
+  Record<'region' | 'roleArn' | 'roleSessionName' | 'cacheTTL' | 'cacheMax' | 'credentials', string>
 >;
 
 export function validateConfig(
@@ -38,13 +38,16 @@ export function validateConfig(
     }
   }
 
-  if (settings.authMode === 'static') {
+  if (settings.authMode === 'static' || settings.authMode === 'assumeRole') {
     const hasAccessKey =
       Boolean(options.secureJsonFields.accessKeyId) || Boolean(options.secureJsonData?.accessKeyId?.trim());
     const hasSecret =
       Boolean(options.secureJsonFields.secretAccessKey) || Boolean(options.secureJsonData?.secretAccessKey?.trim());
     if (!hasAccessKey || !hasSecret) {
-      errors.static = 'Access key ID and secret access key are required.';
+      errors.credentials =
+        settings.authMode === 'assumeRole'
+          ? 'A source access key ID and secret access key are required.'
+          : 'Access key ID and secret access key are required.';
     }
   }
 
