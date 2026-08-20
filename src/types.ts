@@ -1,7 +1,7 @@
 import { DataSourceJsonData } from '@grafana/data';
 import { DataQuery } from '@grafana/schema';
 
-export type AuthMode = 'default' | 'assumeRole' | 'static';
+export type AuthMode = 'assumeRole' | 'static';
 export type CostMetric =
   'UnblendedCost' | 'BlendedCost' | 'AmortizedCost' | 'NetAmortizedCost' | 'NetUnblendedCost' | 'UsageQuantity';
 export type Granularity = 'DAILY' | 'MONTHLY';
@@ -85,7 +85,7 @@ export interface CostExplorerSecureJsonData {
 export const DEFAULT_DATASOURCE_OPTIONS: Required<
   Pick<CostExplorerDataSourceOptions, 'authMode' | 'region' | 'roleSessionName' | 'cacheTTLSeconds' | 'cacheMaxEntries'>
 > = {
-  authMode: 'default',
+  authMode: 'static',
   region: 'us-east-1',
   roleSessionName: 'grafana-cost-explorer',
   cacheTTLSeconds: 900,

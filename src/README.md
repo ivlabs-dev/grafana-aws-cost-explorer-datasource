@@ -4,10 +4,10 @@ Query AWS Cost Explorer directly from Grafana with a visual query builder and
 server-side caching—without building a CUR/Athena pipeline or manually signing
 API requests.
 
-This independent open-source backend data-source plugin supports the AWS SDK
-default credential chain, Kubernetes IRSA/web identity, AssumeRole, and
-encrypted static credentials. It queries `GetCostAndUsage`, follows AWS
-pagination, and returns native Grafana time-series or table data frames.
+This independent open-source backend data-source plugin supports encrypted
+static credentials and AssumeRole with explicit source credentials. It queries
+`GetCostAndUsage`, follows AWS pagination, and returns native Grafana
+time-series or table data frames.
 
 ## Highlights
 
@@ -22,11 +22,11 @@ pagination, and returns native Grafana time-series or table data frames.
 
 ## Configuration
 
-Prefer **Default credential chain** for environment credentials, shared AWS
-files, ECS/EC2 roles, and Kubernetes IRSA. **Assume an IAM role** uses the
-default chain as its source and accepts a role ARN, optional external ID, and
-session name. **Static credentials** are a discouraged fallback and are stored
-only in Grafana secure JSON data.
+**Static credentials** accepts an access key ID, secret access key, and optional
+session token. **Assume an IAM role** requires explicit source credentials and
+accepts a target role ARN, optional external ID, and session name. All
+credential values are stored only in Grafana secure JSON data; the plugin does
+not use the AWS SDK ambient credential chain.
 
 The final AWS identity needs:
 
@@ -49,7 +49,7 @@ requests are deduplicated.
 
 ## Documentation
 
-Full installation, IAM, IRSA, development, security, caching, troubleshooting,
+Full installation, IAM, development, security, caching, troubleshooting,
 limitations, and contribution documentation is available in the
 [GitHub repository](https://github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource).
 

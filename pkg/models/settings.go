@@ -10,7 +10,6 @@ import (
 )
 
 const (
-	AuthModeDefault    = "default"
 	AuthModeAssumeRole = "assumeRole"
 	AuthModeStatic     = "static"
 
@@ -64,7 +63,7 @@ func LoadPluginSettings(source backend.DataSourceInstanceSettings) (*PluginSetti
 
 func (s *PluginSettings) ApplyDefaults() {
 	if s.AuthMode == "" {
-		s.AuthMode = AuthModeDefault
+		s.AuthMode = AuthModeStatic
 	}
 	if s.Region == "" {
 		s.Region = DefaultRegion
@@ -85,7 +84,7 @@ func (s *PluginSettings) ApplyDefaults() {
 
 func (s PluginSettings) Validate() error {
 	switch s.AuthMode {
-	case AuthModeDefault, AuthModeAssumeRole, AuthModeStatic:
+	case AuthModeAssumeRole, AuthModeStatic:
 	default:
 		return fmt.Errorf("authentication mode %q is unsupported", s.AuthMode)
 	}
@@ -109,12 +108,16 @@ func (s PluginSettings) Validate() error {
 		}
 	}
 
-	if s.AuthMode == AuthModeStatic {
+	if s.AuthMode == AuthModeStatic || s.AuthMode == AuthModeAssumeRole {
+		credentialPurpose := "static credentials"
+		if s.AuthMode == AuthModeAssumeRole {
+			credentialPurpose = "AssumeRole source credentials"
+		}
 		if s.Secrets == nil || strings.TrimSpace(s.Secrets.AccessKeyID) == "" {
-			return fmt.Errorf("access key ID is required for static credentials")
+			return fmt.Errorf("access key ID is required for %s", credentialPurpose)
 		}
 		if strings.TrimSpace(s.Secrets.SecretAccessKey) == "" {
-			return fmt.Errorf("secret access key is required for static credentials")
+			return fmt.Errorf("secret access key is required for %s", credentialPurpose)
 		}
 	}
 

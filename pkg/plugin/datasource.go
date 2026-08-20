@@ -18,7 +18,11 @@ import (
 	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/models"
 )
 
-const awsRequestTimeout = 30 * time.Second
+const (
+	awsRequestTimeout                = 30 * time.Second
+	credentialHealthFailureMessage   = "AWS credentials could not be validated. Check the configured credentials."
+	costExplorerHealthFailureMessage = "AWS Cost Explorer request failed. Check the configured credentials, IAM permissions, and AWS region."
+)
 
 var (
 	_ backend.QueryDataHandler      = (*Datasource)(nil)
@@ -238,7 +242,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 	if err := d.resolveCredentials(awsContext); err != nil {
 		classified := fmt.Errorf("AWS credentials could not be resolved; verify the selected credential source: %w", err)
 		d.logger.Warn("AWS credential resolution failed", "error", classified)
-		return healthError(classified), nil
+		return healthFailure(credentialHealthFailureMessage), nil
 	}
 
 	now := d.now().UTC()
@@ -258,7 +262,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 	execution, err := d.service.Execute(awsContext, d.settings, query, dateRange)
 	if err != nil {
 		d.logger.Warn("Cost Explorer health check failed", "error", err)
-		return healthError(err), nil
+		return healthFailure(costExplorerHealthFailureMessage), nil
 	}
 
 	d.logger.Info(
@@ -280,8 +284,12 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 }
 
 func healthError(err error) *backend.CheckHealthResult {
+	return healthFailure(err.Error())
+}
+
+func healthFailure(message string) *backend.CheckHealthResult {
 	return &backend.CheckHealthResult{
 		Status:  backend.HealthStatusError,
-		Message: err.Error(),
+		Message: message,
 	}
 }

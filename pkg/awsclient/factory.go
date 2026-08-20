@@ -40,17 +40,18 @@ func (f *SDKFactory) New(ctx context.Context, settings models.PluginSettings) (*
 		return nil, err
 	}
 
+	// Always install the credentials explicitly supplied through Grafana.
+	// This prevents the SDK from resolving ambient environment, file, or
+	// workload credentials for either direct or AssumeRole authentication.
 	loadOptions := []func(*config.LoadOptions) error{
 		config.WithRegion(settings.Region),
-	}
-	if settings.AuthMode == models.AuthModeStatic {
-		loadOptions = append(loadOptions, config.WithCredentialsProvider(
+		config.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider(
 				settings.Secrets.AccessKeyID,
 				settings.Secrets.SecretAccessKey,
 				settings.Secrets.SessionToken,
 			),
-		))
+		),
 	}
 
 	awsConfig, err := config.LoadDefaultConfig(ctx, loadOptions...)

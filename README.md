@@ -22,9 +22,9 @@ trademark of Grafana Labs.
 
 The current MVP vertical slice includes:
 
-- AWS SDK for Go v2 default credential chain
-- AssumeRole with optional external ID and role session name
-- static credentials stored only in Grafana secure JSON data
+- explicit AWS credentials stored only in Grafana secure JSON data
+- AssumeRole with explicit source credentials, optional external ID, and role
+  session name
 - `CheckHealth` credential resolution and a minimal Cost Explorer request
 - visual metric, daily/monthly granularity, grouping, filtering, and format
   controls
@@ -94,10 +94,10 @@ Open <http://localhost:3000>, sign in as the development administrator, open
 The development container explicitly allows this unsigned plugin. Restart
 Grafana after changing `src/plugin.json`.
 
-The provisioned data source uses the default AWS credential chain. Export AWS
-environment variables before starting Compose, or extend the local Compose
-service with a read-only shared AWS configuration mount. Do not commit those
-values or files.
+The provisioned development data source copies AWS environment variables into
+Grafana `secureJsonData`. Export `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, and optional `AWS_SESSION_TOKEN` before starting
+Compose. Do not commit those values.
 
 ## Installation
 
@@ -133,70 +133,37 @@ No signing credential is required by ordinary CI or unit tests.
 
 ## Data-source configuration
 
-### Default credential chain
+### Static credentials
 
-This is the recommended mode. AWS SDK for Go v2 can resolve:
+Choose **Static credentials**, then configure an access key ID, secret access
+key, optional session token, and AWS region. Prefer short-lived credentials and
+rotate configured credentials regularly.
 
-- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional
-  `AWS_SESSION_TOKEN`
-- web identity (`AWS_ROLE_ARN` and `AWS_WEB_IDENTITY_TOKEN_FILE`)
-- shared AWS credentials and configuration files
-- ECS task role credentials
-- EC2 instance role credentials
-- other identity providers supported by the SDK's default configuration chain
-
-Set the AWS region used for endpoint selection and signing. `us-east-1` is the
-default.
+All credential values are written to Grafana `secureJsonData`. Grafana encrypts
+them at rest and returns only configured/not-configured flags to the browser
+after saving. The backend receives decrypted values only when Grafana creates
+the data-source instance. They are never logged or placed in query models or
+cache keys.
 
 ### AssumeRole
 
 Choose **Assume an IAM role**, then configure:
 
+- a source access key ID and secret access key
+- an optional source session token
 - the full target IAM role ARN
 - an optional external ID
 - an optional role session name
 - the AWS region
 
-The plugin resolves source credentials through the default chain and uses STS
-to assume the target role. The source identity needs permission for
-`sts:AssumeRole`, and the target role trust policy must trust that source. The
-target role needs the Cost Explorer policy below.
+The plugin passes the source credentials directly to the AWS SDK and uses them
+only to call STS AssumeRole. It does not resolve credentials from environment
+variables, shared files, ECS/EC2 metadata, or web identity. The source identity
+needs permission for `sts:AssumeRole`, and the target role trust policy must
+trust that source. The target role needs the Cost Explorer policy below.
 
-The external ID is treated as a secret and stored in secure JSON data even
-though AWS does not define it as a password.
-
-### Kubernetes IRSA
-
-Run Grafana with a Kubernetes service account mapped to an IAM role. On Amazon
-EKS, the service account commonly has an annotation similar to:
-
-```yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: grafana
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/GrafanaCostExplorer
-```
-
-Set the Grafana pod's `serviceAccountName: grafana` and use **Default credential
-chain** in the data source. The EKS admission path supplies the web identity
-token and AWS environment variables to the Grafana pod; the backend SDK reads
-them and rotates temporary credentials. For cross-account access, use this role
-as the source for the plugin's AssumeRole mode.
-
-### Static credentials
-
-Static credentials are a fallback for environments without workload identity.
-The UI requires an access key ID and secret access key and accepts an optional
-session token. Prefer short-lived role credentials: long-lived keys are harder
-to rotate, easier to leak, and broaden incident response scope.
-
-All static credential values are written to Grafana `secureJsonData`. Grafana
-encrypts them at rest and returns only configured/not-configured flags to the
-browser after saving. The backend receives decrypted values only when Grafana
-creates the data-source instance. They are never logged or placed in query
-models or cache keys.
+The source credentials and external ID are stored in secure JSON data. AWS does
+not define an external ID as a password, but the plugin treats it as a secret.
 
 ## IAM policy
 
@@ -387,10 +354,10 @@ See [`docs/architecture.md`](docs/architecture.md) and
 
 **No AWS credentials were found**
 
-Verify the credentials are available inside the Grafana server/pod, not only
-in your browser or workstation shell. For IRSA, inspect the Grafana pod's
-service account, token mount, `AWS_ROLE_ARN`, and
-`AWS_WEB_IDENTITY_TOKEN_FILE`.
+Configure an access key ID and secret access key in the data-source settings.
+For AssumeRole, configure the source credentials used to authenticate the STS
+request. Environment variables and workload credentials are not read directly
+by the plugin.
 
 **AWS denied the request**
 

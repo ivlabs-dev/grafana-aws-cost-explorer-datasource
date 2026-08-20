@@ -2,7 +2,6 @@ import { ComboboxOption } from '@grafana/ui';
 import { AuthMode, CostMetric, Granularity, GroupBy, ResultFormat, TopN } from './types';
 
 export const AUTH_OPTIONS: Array<ComboboxOption<AuthMode>> = [
-  { label: 'Default credential chain (recommended)', value: 'default' },
   { label: 'Assume an IAM role', value: 'assumeRole' },
   { label: 'Static credentials', value: 'static' },
 ];

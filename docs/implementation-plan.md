@@ -22,11 +22,11 @@ Grafana frontend packages 13.1.x, Grafana Plugin SDK for Go 0.294.0, webpack,
 Jest, Playwright through `@grafana/plugin-e2e`, Mage backend builds, and the
 standard Docker development environment.
 
-The AWS implementation uses AWS SDK for Go v2. `config.LoadDefaultConfig`
-provides the supported default credential chain, and `stscreds` provides
-AssumeRole credentials. Cost Explorer requests use `GetCostAndUsage`; its start
-date is inclusive, its end date is exclusive, and it accepts at most two
-groupings.
+The AWS implementation uses AWS SDK for Go v2 with an explicit static
+credentials provider. `stscreds` provides AssumeRole credentials backed by an
+explicitly configured source identity. Cost Explorer requests use
+`GetCostAndUsage`; its start date is inclusive, its end date is exclusive, and
+it accepts at most two groupings.
 
 ## Architecture
 
@@ -40,7 +40,7 @@ Backend packages:
 
 - `pkg/models`: settings, secure settings, versioned query model, validation,
   and Grafana-to-Cost-Explorer time conversion.
-- `pkg/awsclient`: AWS SDK v2 configuration, default/static/AssumeRole
+- `pkg/awsclient`: AWS SDK v2 configuration, explicit static/AssumeRole
   credential providers, credential resolution, and a mockable Cost Explorer
   client interface.
 - `pkg/costexplorer`: safe request construction, filter/group mapping,
@@ -86,23 +86,21 @@ UTC day so the date containing the dashboard endpoint is included.
 
 ## Authentication and secrets
 
-`default` uses the AWS SDK default credential chain, including environment,
-shared files, ECS/EC2 roles, and web identity such as IRSA.
-
-`assumeRole` first loads the default chain, then uses STS AssumeRole with a role
-ARN and optional external ID and role session name.
-
 `static` uses an access key ID, secret access key, and optional session token.
-All three values, plus the optional external ID, are stored only in Grafana
-`secureJsonData`. They are exposed to the backend through
+
+`assumeRole` uses those explicitly configured values as source credentials,
+then uses STS AssumeRole with a role ARN and optional external ID and role
+session name. The SDK is never allowed to fall back to ambient environment,
+shared-file, workload, or instance credentials.
+
+All credential values, plus the optional external ID, are stored only in
+Grafana `secureJsonData`. They are exposed to the backend through
 `DecryptedSecureJSONData`, never returned to the browser after saving, never
-placed in cache keys, and never logged. IAM/workload roles are the recommended
-production mode.
+placed in cache keys, and never logged.
 
 `CheckHealth` validates settings, explicitly resolves credentials, and performs
-a minimal one-day `GetCostAndUsage` request. Errors distinguish configuration,
-credential resolution, AssumeRole/access denial, request validation,
-throttling, and other AWS failures.
+a minimal one-day `GetCostAndUsage` request. Browser responses use generic
+failure messages while backend logs retain diagnostic detail.
 
 ## Caching
 

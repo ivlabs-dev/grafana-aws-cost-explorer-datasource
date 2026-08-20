@@ -118,34 +118,43 @@ export function ConfigEditor({ onOptionsChange, options }: Props) {
         </>
       )}
 
-      {jsonData.authMode === 'static' && (
+      {(jsonData.authMode === 'static' || jsonData.authMode === 'assumeRole') && (
         <>
-          <Alert title="Use IAM roles in production" severity="warning">
-            Static access keys are long-lived credentials. Prefer the default credential chain, workload identity, or
-            AssumeRole whenever possible.
-          </Alert>
-          <InlineField label="Access key ID" labelWidth={24} required>
+          {jsonData.authMode === 'static' ? (
+            <Alert title="Use short-lived credentials" severity="warning">
+              Prefer temporary AWS credentials and rotate configured credentials regularly.
+            </Alert>
+          ) : (
+            <Alert title="AssumeRole source credentials" severity="info">
+              These explicit credentials are used only to authenticate the STS AssumeRole request.
+            </Alert>
+          )}
+          <InlineField
+            label={jsonData.authMode === 'assumeRole' ? 'Source access key ID' : 'Access key ID'}
+            labelWidth={24}
+            required
+          >
             {secretInput('accessKeyId', 'config-access-key-id', 'AWS access key ID')}
           </InlineField>
-          <InlineField label="Secret access key" labelWidth={24} required>
+          <InlineField
+            label={jsonData.authMode === 'assumeRole' ? 'Source secret access key' : 'Secret access key'}
+            labelWidth={24}
+            required
+          >
             {secretInput('secretAccessKey', 'config-secret-access-key', 'AWS secret access key')}
           </InlineField>
-          <InlineField label="Session token" labelWidth={24}>
+          <InlineField
+            label={jsonData.authMode === 'assumeRole' ? 'Source session token' : 'Session token'}
+            labelWidth={24}
+          >
             {secretInput('sessionToken', 'config-session-token', 'Optional temporary session token')}
           </InlineField>
-          {errors.static && (
-            <Alert title="Static credentials are incomplete" severity="error">
-              {errors.static}
+          {errors.credentials && (
+            <Alert title="Credentials are incomplete" severity="error">
+              {errors.credentials}
             </Alert>
           )}
         </>
-      )}
-
-      {jsonData.authMode === 'default' && (
-        <Alert title="Default AWS credential chain" severity="info">
-          The backend can use environment variables, shared AWS files, ECS or EC2 roles, and web identity such as
-          Kubernetes IRSA. No credentials are sent to the browser.
-        </Alert>
       )}
 
       <h3>Caching</h3>

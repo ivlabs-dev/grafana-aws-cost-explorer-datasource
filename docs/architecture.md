@@ -58,26 +58,20 @@ secret access key, and session token. Grafana encrypts these values at rest and
 only supplies decrypted values to the backend. After saving, the browser sees
 only booleans in `secureJsonFields`, not the stored values.
 
-### Default chain
+### Static credentials
 
-The backend calls AWS SDK v2 `config.LoadDefaultConfig`. The SDK can resolve
-environment credentials, web identity, shared configuration/credentials
-files, ECS task roles, and EC2 instance roles. Credential rotation is handled
-by the SDK.
+The backend passes the configured access key ID, secret access key, and
+optional session token directly to the AWS SDK static provider. An explicit
+provider is always installed, preventing fallback to environment variables,
+shared files, web identity, or instance metadata.
 
 ### AssumeRole
 
-The backend loads the default chain for source credentials, creates an STS
-client, and wraps `stscreds.NewAssumeRoleProvider` in the SDK credential cache.
-The configured role ARN, optional external ID, and role session name are sent
-to STS. Resulting temporary credentials are held by the SDK and never exposed
-to the plugin frontend or query model.
-
-### Static credentials
-
-Static credentials are passed directly to the SDK static provider. They are
-supported as a fallback but are intentionally discouraged because they do not
-rotate automatically.
+The backend configures the STS client with explicit source credentials and
+wraps `stscreds.NewAssumeRoleProvider` in the SDK credential cache. The
+configured role ARN, optional external ID, and role session name are sent to
+STS. Resulting temporary credentials are held by the SDK and never exposed to
+the plugin frontend or query model.
 
 ## Query lifecycle
 
