@@ -109,15 +109,15 @@ func (s PluginSettings) Validate() error {
 	}
 
 	if s.AuthMode == AuthModeStatic || s.AuthMode == AuthModeAssumeRole {
-		credentialPurpose := "static credentials"
+		authModeLabel := "static credentials"
 		if s.AuthMode == AuthModeAssumeRole {
-			credentialPurpose = "AssumeRole source credentials"
+			authModeLabel = "AssumeRole source credentials"
 		}
 		if s.Secrets == nil || strings.TrimSpace(s.Secrets.AccessKeyID) == "" {
-			return fmt.Errorf("access key ID is required for %s", credentialPurpose)
+			return fmt.Errorf("access key ID is required for %s", authModeLabel)
 		}
 		if strings.TrimSpace(s.Secrets.SecretAccessKey) == "" {
-			return fmt.Errorf("secret access key is required for %s", credentialPurpose)
+			return fmt.Errorf("secret access key is required for %s", authModeLabel)
 		}
 	}
 
