@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.7 (2026-09-09)
+
+- Rename an internal validation label to clear two false-positive gosec G101
+  "hardcoded credentials" findings.
+- Raise the Go toolchain to 1.26.8, resolving eight standard-library
+  vulnerabilities reported by govulncheck.
+- Update `@grafana/plugin-e2e` to 3.12.0 for compatibility with the Grafana
+  13.2+ panel editor.
+
 ## 1.0.6 (2026-08-20)
 
 - Remove the AWS SDK default credential-chain authentication mode.
