@@ -8,6 +8,9 @@
   vulnerabilities reported by govulncheck.
 - Update `@grafana/plugin-e2e` to 3.12.0 for compatibility with the Grafana
   13.2+ panel editor.
+- Bump `google.golang.org/grpc` to 1.83.2 and pin `fast-uri` and `js-yaml`
+  to patched versions, clearing HIGH advisories reported by the plugin
+  validator's vulnerability scan.
 
 ## 1.0.6 (2026-08-20)
 
