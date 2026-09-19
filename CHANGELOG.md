@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.8 (2026-09-19)
+
+- First signed release. Enable plugin signing in the release workflow using a
+  Grafana Cloud access policy token. No functional changes since 1.0.7.
+
 ## 1.0.7 (2026-09-09)
 
 - Rename an internal validation label to clear two false-positive gosec G101
