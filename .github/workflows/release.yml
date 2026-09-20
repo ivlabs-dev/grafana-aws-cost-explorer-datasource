@@ -26,9 +26,7 @@ jobs:
           attestation: true
           go-version: '1.26.8'
           node-version: '22'
-          # Uncomment to enable plugin signing
+          # Plugin signing
           # (For more info on how to generate the access policy token see https://grafana.com/developers/plugin-tools/publish-a-plugin/sign-a-plugin#generate-an-access-policy-token)
-          # Make sure to save the token in your repository secrets
-          # policy_token: $
-          # Usage of GRAFANA_API_KEY is deprecated, prefer `policy_token` option above
-          # grafana_token: $
+          # The token must be saved in the repository secrets as GRAFANA_ACCESS_POLICY_TOKEN
+          policy_token: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
