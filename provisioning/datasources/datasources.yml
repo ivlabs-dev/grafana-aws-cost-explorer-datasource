@@ -10,7 +10,7 @@ datasources:
     version: 1
     editable: true
     jsonData:
-      authMode: 'static'
+      authType: 'keys'
       region: 'us-east-1'
       cacheTTLSeconds: 900
       cacheMaxEntries: 256

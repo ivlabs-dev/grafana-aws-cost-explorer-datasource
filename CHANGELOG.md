@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Authenticate with the AWS SDK credential chain, so a Grafana server that
+  already holds an AWS identity needs no stored access key.
+
 ## 1.0.8 (2026-09-19)
 
 - First signed release. Enable plugin signing in the release workflow using a

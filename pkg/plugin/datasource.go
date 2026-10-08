@@ -265,19 +265,24 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 		return healthFailure(costExplorerHealthFailureMessage), nil
 	}
 
+	assumedRole := ""
+	if d.settings.AssumesRole() {
+		assumedRole = fmt.Sprintf(", assuming %s", d.settings.AssumeRoleARN)
+	}
 	d.logger.Info(
 		"Cost Explorer health check completed",
 		"region", d.settings.Region,
-		"auth_mode", d.settings.AuthMode,
+		"auth_type", d.settings.AuthType,
 		"cache", execution.CacheStatus(),
 		"aws_duration_ms", execution.AWSDuration.Milliseconds(),
 	)
 	return &backend.CheckHealthResult{
 		Status: backend.HealthStatusOk,
 		Message: fmt.Sprintf(
-			"Connected to AWS Cost Explorer in %s using %s credentials (cache %s)",
+			"Connected to AWS Cost Explorer in %s using %s credentials%s (cache %s)",
 			d.settings.Region,
-			d.settings.AuthMode,
+			d.settings.AuthType,
+			assumedRole,
 			execution.CacheStatus(),
 		),
 	}, nil

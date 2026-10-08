@@ -58,20 +58,46 @@ secret access key, and session token. Grafana encrypts these values at rest and
 only supplies decrypted values to the backend. After saving, the browser sees
 only booleans in `secureJsonFields`, not the stored values.
 
-### Static credentials
+Authentication is two independent choices: `AuthType` selects a credentials
+provider, and an optional `AssumeRoleARN` layers a role on top of whatever that
+provider resolved.
+
+### Access & secret key (`keys`)
 
 The backend passes the configured access key ID, secret access key, and
 optional session token directly to the AWS SDK static provider. An explicit
-provider is always installed, preventing fallback to environment variables,
-shared files, web identity, or instance metadata.
+provider is installed, preventing fallback to environment variables, shared
+files, web identity, or instance metadata.
 
-### AssumeRole
+### AWS SDK Default (`default`)
 
-The backend configures the STS client with explicit source credentials and
-wraps `stscreds.NewAssumeRoleProvider` in the SDK credential cache. The
-configured role ARN, optional external ID, and role session name are sent to
-STS. Resulting temporary credentials are held by the SDK and never exposed to
-the plugin frontend or query model.
+The backend installs no credentials provider and lets `LoadDefaultConfig`
+resolve the AWS SDK default chain. This is the only provider that reads an
+ambient identity, and it is never reached by fallback.
+
+### Assume Role ARN
+
+When set, the credentials resolved above sign an STS call rather than a Cost
+Explorer one: the backend wraps `stscreds.NewAssumeRoleProvider` in the SDK
+credential cache, sending the role ARN, optional external ID, and role session
+name. The resulting temporary credentials are held by the SDK and never exposed
+to the plugin frontend or query model.
+
+`ApplyDefaults` folds settings saved under the superseded `authMode` into these
+two fields: `static` and `assumeRole` both become `keys`, and `assumeRole`
+carries its role ARN across. Any other stored value is left untranslated rather
+than reinterpreted as the provider that shares its name.
+
+### Server-side authentication policy
+
+`AuthSettings` reads `allowed_auth_providers` and `assume_role_enabled` from
+the plugin context, falling back to the process environment and then to
+Grafana's defaults. `AuthType` holds the values `allowed_auth_providers` lists,
+so no translation is involved, and the client factory refuses whatever the
+server withholds.
+Grafana shares the section only with the plugins `[aws]
+forward_settings_to_plugins` names; elsewhere its defaults apply, permitting
+`default`, `keys`, and `credentials`.
 
 ## Query lifecycle
 

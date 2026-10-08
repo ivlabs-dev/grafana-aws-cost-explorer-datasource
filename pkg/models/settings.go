@@ -9,9 +9,20 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 )
 
+// Grafana's AWS authentication provider identifiers, as written in the
+// `allowed_auth_providers` key of its `[aws]` configuration section and stored
+// as a data source's AuthType.
 const (
-	AuthModeAssumeRole = "assumeRole"
-	AuthModeStatic     = "static"
+	// AuthProviderDefault is the AWS SDK default credential chain.
+	AuthProviderDefault = "default"
+	// AuthProviderKeys is an access key and secret access key.
+	AuthProviderKeys = "keys"
+)
+
+const (
+	// Superseded by AuthType; see adoptLegacyAuthMode.
+	legacyAuthModeAssumeRole = "assumeRole"
+	legacyAuthModeStatic     = "static"
 
 	DefaultRegion          = "us-east-1"
 	DefaultCacheTTLSeconds = 15 * 60
@@ -29,13 +40,22 @@ var (
 // PluginSettings contains only non-secret data that Grafana may return to the
 // browser. Secret values are loaded separately from DecryptedSecureJSONData.
 type PluginSettings struct {
-	AuthMode        string                `json:"authMode"`
-	Region          string                `json:"region"`
-	RoleARN         string                `json:"roleArn,omitempty"`
-	RoleSessionName string                `json:"roleSessionName,omitempty"`
-	CacheTTLSeconds int                   `json:"cacheTTLSeconds"`
-	CacheMaxEntries int                   `json:"cacheMaxEntries"`
-	Secrets         *SecretPluginSettings `json:"-"`
+	// AuthType is one of the AuthProvider constants, named as
+	// `[aws] allowed_auth_providers` names them.
+	AuthType string `json:"authType"`
+	Region   string `json:"region"`
+	// Optional and independent of AuthType: when set, the credentials AuthType
+	// resolves assume this role rather than call Cost Explorer directly.
+	AssumeRoleARN   string `json:"assumeRoleArn,omitempty"`
+	RoleSessionName string `json:"roleSessionName,omitempty"`
+	CacheTTLSeconds int    `json:"cacheTTLSeconds"`
+	CacheMaxEntries int    `json:"cacheMaxEntries"`
+
+	// Read only by adoptLegacyAuthMode, which folds them into the fields above.
+	LegacyAuthMode string `json:"authMode,omitempty"`
+	LegacyRoleARN  string `json:"roleArn,omitempty"`
+
+	Secrets *SecretPluginSettings `json:"-"`
 }
 
 // SecretPluginSettings is never serialized into jsonData or sent back to the
@@ -62,8 +82,10 @@ func LoadPluginSettings(source backend.DataSourceInstanceSettings) (*PluginSetti
 }
 
 func (s *PluginSettings) ApplyDefaults() {
-	if s.AuthMode == "" {
-		s.AuthMode = AuthModeStatic
+	s.adoptLegacyAuthMode()
+
+	if s.AuthType == "" {
+		s.AuthType = AuthProviderKeys
 	}
 	if s.Region == "" {
 		s.Region = DefaultRegion
@@ -83,10 +105,10 @@ func (s *PluginSettings) ApplyDefaults() {
 }
 
 func (s PluginSettings) Validate() error {
-	switch s.AuthMode {
-	case AuthModeAssumeRole, AuthModeStatic:
+	switch s.AuthType {
+	case AuthProviderDefault, AuthProviderKeys:
 	default:
-		return fmt.Errorf("authentication mode %q is unsupported", s.AuthMode)
+		return fmt.Errorf("authentication provider %q is unsupported", s.AuthType)
 	}
 
 	if !regionPattern.MatchString(s.Region) || !strings.Contains(s.Region, "-") {
@@ -99,8 +121,8 @@ func (s PluginSettings) Validate() error {
 		return fmt.Errorf("cache maximum entries must be between 1 and %d", MaxCacheEntries)
 	}
 
-	if s.AuthMode == AuthModeAssumeRole {
-		if !roleARNPattern.MatchString(s.RoleARN) {
+	if s.AssumesRole() {
+		if !roleARNPattern.MatchString(s.AssumeRoleARN) {
 			return fmt.Errorf("role ARN must be an IAM role ARN such as arn:aws:iam::123456789012:role/GrafanaCostExplorer")
 		}
 		if !sessionPattern.MatchString(s.RoleSessionName) {
@@ -108,26 +130,46 @@ func (s PluginSettings) Validate() error {
 		}
 	}
 
-	if s.AuthMode == AuthModeStatic || s.AuthMode == AuthModeAssumeRole {
-		authModeLabel := "static credentials"
-		if s.AuthMode == AuthModeAssumeRole {
-			authModeLabel = "AssumeRole source credentials"
-		}
+	if s.AuthType == AuthProviderKeys {
 		if s.Secrets == nil || strings.TrimSpace(s.Secrets.AccessKeyID) == "" {
-			return fmt.Errorf("access key ID is required for %s", authModeLabel)
+			return fmt.Errorf("access key ID is required for access key authentication")
 		}
 		if strings.TrimSpace(s.Secrets.SecretAccessKey) == "" {
-			return fmt.Errorf("secret access key is required for %s", authModeLabel)
+			return fmt.Errorf("secret access key is required for access key authentication")
 		}
 	}
 
 	return nil
 }
 
+// AssumesRole reports whether a role hop is configured on top of AuthType.
+func (s PluginSettings) AssumesRole() bool {
+	return strings.TrimSpace(s.AssumeRoleARN) != ""
+}
+
+// adoptLegacyAuthMode translates the two superseded authMode values, which both
+// authenticated with a stored access key; "assumeRole" also carried the role it
+// hopped to. Any other value is left untranslated, so it must be reconfigured
+// rather than silently reinterpreted.
+func (s *PluginSettings) adoptLegacyAuthMode() {
+	if s.AuthType != "" {
+		return
+	}
+	switch s.LegacyAuthMode {
+	case legacyAuthModeStatic, legacyAuthModeAssumeRole:
+		s.AuthType = AuthProviderKeys
+	default:
+		return
+	}
+	if s.LegacyAuthMode == legacyAuthModeAssumeRole && s.AssumeRoleARN == "" {
+		s.AssumeRoleARN = s.LegacyRoleARN
+	}
+}
+
 // CredentialContext contains safe, non-secret values that may be used as part
 // of a cache-key digest.
 func (s PluginSettings) CredentialContext() string {
-	return strings.Join([]string{s.AuthMode, s.RoleARN, s.Region}, "\x00")
+	return strings.Join([]string{s.AuthType, s.AssumeRoleARN, s.Region}, "\x00")
 }
 
 func loadSecretPluginSettings(source map[string]string) *SecretPluginSettings {

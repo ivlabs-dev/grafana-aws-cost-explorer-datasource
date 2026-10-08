@@ -7,8 +7,10 @@ test('smoke: renders authentication and cache configuration', async ({
 }) => {
   const dataSource = await readProvisionedDataSource({ fileName: 'datasources.yml' });
   await createDataSourceConfigPage({ type: dataSource.type });
-  await expect(page.getByRole('combobox', { name: 'Authentication' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Authentication Provider' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'AWS region' })).toHaveValue('us-east-1');
+  // Offered for either authentication provider.
+  await expect(page.getByRole('textbox', { name: 'Assume Role ARN' })).toBeVisible();
   await expect(page.getByRole('spinbutton', { name: 'Cache TTL seconds' })).toHaveValue('900');
 });
 

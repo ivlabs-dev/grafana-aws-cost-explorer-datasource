@@ -216,7 +216,7 @@ func TestBuildInputMapsFiltersAndAvailabilityZone(t *testing.T) {
 
 func validSettings() models.PluginSettings {
 	return models.PluginSettings{
-		AuthMode:        models.AuthModeStatic,
+		AuthType:        models.AuthProviderKeys,
 		Region:          "us-east-1",
 		CacheTTLSeconds: models.DefaultCacheTTLSeconds,
 		CacheMaxEntries: models.DefaultCacheMaxEntries,

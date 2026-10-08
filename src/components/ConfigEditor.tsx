@@ -4,17 +4,17 @@ import { Alert, Combobox, InlineField, Input, SecretInput } from '@grafana/ui';
 import { validateConfig } from '../configValidation';
 import { AUTH_OPTIONS } from '../options';
 import {
-  AuthMode,
+  AuthType,
   CostExplorerDataSourceOptions,
   CostExplorerSecureJsonData,
-  DEFAULT_DATASOURCE_OPTIONS,
+  normalizeDataSourceOptions,
 } from '../types';
 
 type Props = DataSourcePluginOptionsEditorProps<CostExplorerDataSourceOptions, CostExplorerSecureJsonData>;
 type SecretKey = keyof CostExplorerSecureJsonData;
 
 export function ConfigEditor({ onOptionsChange, options }: Props) {
-  const jsonData = { ...DEFAULT_DATASOURCE_OPTIONS, ...options.jsonData };
+  const jsonData = normalizeDataSourceOptions(options.jsonData);
   const errors = validateConfig(options);
 
   const updateJson = (patch: Partial<CostExplorerDataSourceOptions>) => {
@@ -47,13 +47,19 @@ export function ConfigEditor({ onOptionsChange, options }: Props) {
   return (
     <div>
       <h3>Authentication</h3>
-      <InlineField label="Authentication" labelWidth={24} htmlFor="config-auth-mode" required>
-        <Combobox<AuthMode>
-          id="config-auth-mode"
+      <InlineField
+        label="Authentication Provider"
+        labelWidth={24}
+        htmlFor="config-auth-type"
+        required
+        tooltip="Specify which AWS credentials chain to use."
+      >
+        <Combobox<AuthType>
+          id="config-auth-type"
           options={AUTH_OPTIONS}
-          value={jsonData.authMode}
+          value={jsonData.authType}
           width={48}
-          onChange={(value) => updateJson({ authMode: value.value })}
+          onChange={(value) => updateJson({ authType: value.value })}
         />
       </InlineField>
       <InlineField
@@ -74,24 +80,56 @@ export function ConfigEditor({ onOptionsChange, options }: Props) {
         />
       </InlineField>
 
-      {jsonData.authMode === 'assumeRole' && (
+      {jsonData.authType === 'default' && (
+        <Alert title="No credentials are stored for this data source" severity="info">
+          The AWS SDK default chain resolves the EC2 instance profile, ECS task role, EKS web identity, or the plugin
+          process environment. Attach the Cost Explorer policy to the role the Grafana server already runs as. A Grafana
+          administrator can withhold this by removing <code>default</code> from <code>allowed_auth_providers</code> in
+          the <code>[aws]</code> configuration section.
+        </Alert>
+      )}
+
+      {jsonData.authType === 'keys' && (
         <>
-          <InlineField
-            label="Role ARN"
-            labelWidth={24}
-            required
-            invalid={Boolean(errors.roleArn)}
-            error={errors.roleArn}
-          >
-            <Input
-              id="config-role-arn"
-              aria-label="Role ARN"
-              value={options.jsonData.roleArn ?? ''}
-              placeholder="arn:aws:iam::123456789012:role/GrafanaCostExplorer"
-              width={72}
-              onChange={(event: ChangeEvent<HTMLInputElement>) => updateJson({ roleArn: event.currentTarget.value })}
-            />
+          <Alert title="Use short-lived credentials" severity="warning">
+            Prefer temporary AWS credentials and rotate configured credentials regularly.
+          </Alert>
+          <InlineField label="Access key ID" labelWidth={24} required>
+            {secretInput('accessKeyId', 'config-access-key-id', 'AWS access key ID')}
           </InlineField>
+          <InlineField label="Secret access key" labelWidth={24} required>
+            {secretInput('secretAccessKey', 'config-secret-access-key', 'AWS secret access key')}
+          </InlineField>
+          <InlineField label="Session token" labelWidth={24}>
+            {secretInput('sessionToken', 'config-session-token', 'Optional temporary session token')}
+          </InlineField>
+          {errors.credentials && (
+            <Alert title="Credentials are incomplete" severity="error">
+              {errors.credentials}
+            </Alert>
+          )}
+        </>
+      )}
+
+      <h3>Assume Role</h3>
+      <InlineField
+        label="Assume Role ARN"
+        labelWidth={24}
+        invalid={Boolean(errors.assumeRoleArn)}
+        error={errors.assumeRoleArn}
+        tooltip="Optional. Specifying the ARN of a role will ensure that the selected authentication provider is used to assume the role rather than the credentials directly."
+      >
+        <Input
+          id="config-assume-role-arn"
+          aria-label="Assume Role ARN"
+          value={jsonData.assumeRoleArn ?? ''}
+          placeholder="arn:aws:iam::123456789012:role/GrafanaCostExplorer"
+          width={72}
+          onChange={(event: ChangeEvent<HTMLInputElement>) => updateJson({ assumeRoleArn: event.currentTarget.value })}
+        />
+      </InlineField>
+      {jsonData.assumeRoleArn && (
+        <>
           <InlineField
             label="External ID"
             labelWidth={24}
@@ -115,45 +153,6 @@ export function ConfigEditor({ onOptionsChange, options }: Props) {
               }
             />
           </InlineField>
-        </>
-      )}
-
-      {(jsonData.authMode === 'static' || jsonData.authMode === 'assumeRole') && (
-        <>
-          {jsonData.authMode === 'static' ? (
-            <Alert title="Use short-lived credentials" severity="warning">
-              Prefer temporary AWS credentials and rotate configured credentials regularly.
-            </Alert>
-          ) : (
-            <Alert title="AssumeRole source credentials" severity="info">
-              These explicit credentials are used only to authenticate the STS AssumeRole request.
-            </Alert>
-          )}
-          <InlineField
-            label={jsonData.authMode === 'assumeRole' ? 'Source access key ID' : 'Access key ID'}
-            labelWidth={24}
-            required
-          >
-            {secretInput('accessKeyId', 'config-access-key-id', 'AWS access key ID')}
-          </InlineField>
-          <InlineField
-            label={jsonData.authMode === 'assumeRole' ? 'Source secret access key' : 'Secret access key'}
-            labelWidth={24}
-            required
-          >
-            {secretInput('secretAccessKey', 'config-secret-access-key', 'AWS secret access key')}
-          </InlineField>
-          <InlineField
-            label={jsonData.authMode === 'assumeRole' ? 'Source session token' : 'Session token'}
-            labelWidth={24}
-          >
-            {secretInput('sessionToken', 'config-session-token', 'Optional temporary session token')}
-          </InlineField>
-          {errors.credentials && (
-            <Alert title="Credentials are incomplete" severity="error">
-              {errors.credentials}
-            </Alert>
-          )}
         </>
       )}
 

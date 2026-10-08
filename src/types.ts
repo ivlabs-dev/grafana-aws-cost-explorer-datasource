@@ -1,7 +1,7 @@
 import { DataSourceJsonData } from '@grafana/data';
 import { DataQuery } from '@grafana/schema';
 
-export type AuthMode = 'assumeRole' | 'static';
+export type AuthType = 'default' | 'keys';
 export type CostMetric =
   'UnblendedCost' | 'BlendedCost' | 'AmortizedCost' | 'NetAmortizedCost' | 'NetUnblendedCost' | 'UsageQuantity';
 export type Granularity = 'DAILY' | 'MONTHLY';
@@ -67,12 +67,16 @@ export function normalizeQuery(query: CostQuery): CostQuery {
 }
 
 export interface CostExplorerDataSourceOptions extends DataSourceJsonData {
-  authMode?: AuthMode;
+  authType?: AuthType;
   region?: string;
-  roleArn?: string;
+  assumeRoleArn?: string;
   roleSessionName?: string;
   cacheTTLSeconds?: number;
   cacheMaxEntries?: number;
+
+  /** Superseded; read only by normalizeDataSourceOptions. */
+  authMode?: string;
+  roleArn?: string;
 }
 
 export interface CostExplorerSecureJsonData {
@@ -83,11 +87,31 @@ export interface CostExplorerSecureJsonData {
 }
 
 export const DEFAULT_DATASOURCE_OPTIONS: Required<
-  Pick<CostExplorerDataSourceOptions, 'authMode' | 'region' | 'roleSessionName' | 'cacheTTLSeconds' | 'cacheMaxEntries'>
+  Pick<CostExplorerDataSourceOptions, 'authType' | 'region' | 'roleSessionName' | 'cacheTTLSeconds' | 'cacheMaxEntries'>
 > = {
-  authMode: 'static',
+  authType: 'keys',
   region: 'us-east-1',
   roleSessionName: 'grafana-cost-explorer',
   cacheTTLSeconds: 900,
   cacheMaxEntries: 256,
 };
+
+/**
+ * Mirrors the backend's adoptLegacyAuthMode so the editor shows what the
+ * backend will actually use.
+ */
+export function normalizeDataSourceOptions(
+  jsonData: CostExplorerDataSourceOptions
+): CostExplorerDataSourceOptions & typeof DEFAULT_DATASOURCE_OPTIONS {
+  const settings = { ...DEFAULT_DATASOURCE_OPTIONS, ...jsonData };
+  if (jsonData.authType) {
+    return settings;
+  }
+  if (jsonData.authMode === 'static' || jsonData.authMode === 'assumeRole') {
+    settings.authType = 'keys';
+  }
+  if (jsonData.authMode === 'assumeRole' && !settings.assumeRoleArn) {
+    settings.assumeRoleArn = jsonData.roleArn;
+  }
+  return settings;
+}

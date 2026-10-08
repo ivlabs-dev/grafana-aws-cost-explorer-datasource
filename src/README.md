@@ -4,10 +4,10 @@ Query AWS Cost Explorer directly from Grafana with a visual query builder and
 server-side caching—without building a CUR/Athena pipeline or manually signing
 API requests.
 
-This independent open-source backend data-source plugin supports encrypted
-static credentials and AssumeRole with explicit source credentials. It queries
-`GetCostAndUsage`, follows AWS pagination, and returns native Grafana
-time-series or table data frames.
+This independent open-source backend data-source plugin authenticates with an
+access key or the AWS SDK credential chain, optionally assuming a role on top
+of either. It queries `GetCostAndUsage`, follows AWS pagination, and returns
+native Grafana time-series or table data frames.
 
 ## Highlights
 
@@ -22,11 +22,16 @@ time-series or table data frames.
 
 ## Configuration
 
-**Static credentials** accepts an access key ID, secret access key, and optional
-session token. **Assume an IAM role** requires explicit source credentials and
-accepts a target role ARN, optional external ID, and session name. All
-credential values are stored only in Grafana secure JSON data; the plugin does
-not use the AWS SDK ambient credential chain.
+**AWS SDK Default** stores no credentials and uses the identity the Grafana
+server already holds — an EC2 instance profile, an ECS task role, or EKS web
+identity. **Access & secret key** accepts an access key ID, secret access key,
+and optional session token, stored only in Grafana secure JSON data; it never
+falls back to the ambient chain.
+
+An optional **Assume Role ARN** works with either provider, so an instance
+profile can assume a cross-account role just as an access key can.
+Administrators restrict both through `allowed_auth_providers` and
+`assume_role_enabled` in Grafana's `[aws]` section.
 
 The final AWS identity needs:
 

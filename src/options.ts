@@ -1,9 +1,10 @@
 import { ComboboxOption } from '@grafana/ui';
-import { AuthMode, CostMetric, Granularity, GroupBy, ResultFormat, TopN } from './types';
+import { AuthType, CostMetric, Granularity, GroupBy, ResultFormat, TopN } from './types';
 
-export const AUTH_OPTIONS: Array<ComboboxOption<AuthMode>> = [
-  { label: 'Assume an IAM role', value: 'assumeRole' },
-  { label: 'Static credentials', value: 'static' },
+// Grafana's shared credentials file provider is omitted; this plugin does not read one.
+export const AUTH_OPTIONS: Array<ComboboxOption<AuthType>> = [
+  { label: 'AWS SDK Default', value: 'default' },
+  { label: 'Access & secret key', value: 'keys' },
 ];
 
 export const METRIC_OPTIONS: Array<ComboboxOption<CostMetric>> = [

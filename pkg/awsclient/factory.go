@@ -39,19 +39,23 @@ func (f *SDKFactory) New(ctx context.Context, settings models.PluginSettings) (*
 	if err := settings.Validate(); err != nil {
 		return nil, err
 	}
+	if err := models.ReadAuthSettings(ctx).Permits(settings); err != nil {
+		return nil, err
+	}
 
-	// Always install the credentials explicitly supplied through Grafana.
-	// This prevents the SDK from resolving ambient environment, file, or
-	// workload credentials for either direct or AssumeRole authentication.
-	loadOptions := []func(*config.LoadOptions) error{
-		config.WithRegion(settings.Region),
-		config.WithCredentialsProvider(
+	loadOptions := []func(*config.LoadOptions) error{config.WithRegion(settings.Region)}
+
+	// Installing the credentials supplied through Grafana keeps the SDK from
+	// resolving ambient environment, file, or workload credentials. Only
+	// AuthProviderDefault leaves the chain to the SDK.
+	if settings.AuthType != models.AuthProviderDefault {
+		loadOptions = append(loadOptions, config.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider(
 				settings.Secrets.AccessKeyID,
 				settings.Secrets.SecretAccessKey,
 				settings.Secrets.SessionToken,
 			),
-		),
+		))
 	}
 
 	awsConfig, err := config.LoadDefaultConfig(ctx, loadOptions...)
@@ -59,10 +63,12 @@ func (f *SDKFactory) New(ctx context.Context, settings models.PluginSettings) (*
 		return nil, fmt.Errorf("load AWS configuration: %w", err)
 	}
 
-	if settings.AuthMode == models.AuthModeAssumeRole {
+	// Whatever the provider above resolved is what signs the STS call, so an
+	// instance profile can assume a role just as an access key can.
+	if settings.AssumesRole() {
 		provider := stscreds.NewAssumeRoleProvider(
 			sts.NewFromConfig(awsConfig),
-			settings.RoleARN,
+			settings.AssumeRoleARN,
 			func(options *stscreds.AssumeRoleOptions) {
 				options.RoleSessionName = settings.RoleSessionName
 				if settings.Secrets.ExternalID != "" {

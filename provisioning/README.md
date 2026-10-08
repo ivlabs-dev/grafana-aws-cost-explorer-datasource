@@ -11,5 +11,6 @@ The standard development container mounts this directory at
 
 Export AWS variables before `docker compose up` if you want the container to
 provision working credentials. Grafana copies them into the data source's
-encrypted `secureJsonData`; the plugin does not resolve ambient credentials
-through the AWS SDK. Never add real credentials to these files.
+encrypted `secureJsonData`. The provisioned data source uses an access key,
+which never resolves ambient credentials through the AWS SDK. Never add real
+credentials to these files.
