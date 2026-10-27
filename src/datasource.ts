@@ -29,4 +29,26 @@ export class DataSource extends DataSourceWithBackend<CostQuery, CostExplorerDat
   filterQuery(query: CostQuery): boolean {
     return Boolean(query.metric && query.granularity && query.format);
   }
+
+  private async lookupValues(path: string, params: Record<string, string>): Promise<string[]> {
+    try {
+      const response = await this.getResource<{ values: string[] }>(path, params);
+      return response.values ?? [];
+    } catch (error) {
+      console.warn(`AWS Cost Explorer: ${path} lookup failed`, error);
+      return [];
+    }
+  }
+
+  getDimensionValues(dimension: string, search: string): Promise<string[]> {
+    return this.lookupValues('dimension-values', { dimension, search });
+  }
+
+  getCostAllocationTagKeys(search: string): Promise<string[]> {
+    return this.lookupValues('tag-keys', { search });
+  }
+
+  getCostAllocationTagValues(key: string, search: string): Promise<string[]> {
+    return this.lookupValues('tag-values', { key, search });
+  }
 }

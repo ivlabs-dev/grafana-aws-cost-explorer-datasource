@@ -1,6 +1,6 @@
-import React, { ChangeEvent } from 'react';
+import React from 'react';
 import { QueryEditorProps } from '@grafana/data';
-import { Alert, Combobox, InlineField, Input } from '@grafana/ui';
+import { Alert, Combobox, ComboboxOption, InlineField } from '@grafana/ui';
 import { DataSource } from '../datasource';
 import { FORMAT_OPTIONS, GRANULARITY_OPTIONS, GROUP_OPTIONS, METRIC_OPTIONS } from '../options';
 import { GroupLimitOptions } from './GroupLimitOptions';
@@ -17,7 +17,9 @@ import {
 
 type Props = QueryEditorProps<DataSource, CostQuery, CostExplorerDataSourceOptions>;
 
-export function QueryEditor({ query, onChange, onRunQuery }: Props) {
+const toOptions = (values: string[]): Array<ComboboxOption<string>> => values.map((value) => ({ label: value, value }));
+
+export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) {
   const model = normalizeQuery(query);
 
   const update = (patch: Partial<CostQuery>, run = true) => {
@@ -97,58 +99,78 @@ export function QueryEditor({ query, onChange, onRunQuery }: Props) {
         />
       </InlineField>
 
-      <InlineField label="AWS service" labelWidth={18} tooltip="Exact Cost Explorer SERVICE dimension value.">
-        <Input
+      <InlineField
+        label="AWS service"
+        labelWidth={18}
+        tooltip="Cost Explorer SERVICE dimension value. Type to search, or enter any value."
+      >
+        <Combobox<string>
           id="query-filter-service"
           aria-label="AWS service filter"
+          options={(input) => datasource.getDimensionValues('SERVICE', input).then(toOptions)}
           value={model.filter.service ?? ''}
           placeholder="Amazon Elastic Compute Cloud - Compute"
           width={48}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => updateFilter('service', event.currentTarget.value)}
+          createCustomValue
+          isClearable
+          onChange={(option) => updateFilter('service', option?.value ?? '')}
           onBlur={onRunQuery}
         />
       </InlineField>
       <InlineField label="Linked account" labelWidth={18}>
-        <Input
+        <Combobox<string>
           id="query-filter-account"
           aria-label="Linked account filter"
+          options={(input) => datasource.getDimensionValues('LINKED_ACCOUNT', input).then(toOptions)}
           value={model.filter.linkedAccount ?? ''}
           placeholder="123456789012"
           width={32}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => updateFilter('linkedAccount', event.currentTarget.value)}
+          createCustomValue
+          isClearable
+          onChange={(option) => updateFilter('linkedAccount', option?.value ?? '')}
           onBlur={onRunQuery}
         />
       </InlineField>
       <InlineField label="Region" labelWidth={18}>
-        <Input
+        <Combobox<string>
           id="query-filter-region"
           aria-label="Region filter"
+          options={(input) => datasource.getDimensionValues('REGION', input).then(toOptions)}
           value={model.filter.region ?? ''}
           placeholder="eu-west-1"
           width={32}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => updateFilter('region', event.currentTarget.value)}
+          createCustomValue
+          isClearable
+          onChange={(option) => updateFilter('region', option?.value ?? '')}
           onBlur={onRunQuery}
         />
       </InlineField>
       <InlineField label="Tag key" labelWidth={18}>
-        <Input
+        <Combobox<string>
           id="query-filter-tag-key"
           aria-label="Cost allocation tag key"
+          options={(input) => datasource.getCostAllocationTagKeys(input).then(toOptions)}
           value={model.filter.tagKey ?? ''}
           placeholder="Environment"
           width={32}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => updateFilter('tagKey', event.currentTarget.value)}
+          createCustomValue
+          isClearable
+          onChange={(option) => updateFilter('tagKey', option?.value ?? '')}
           onBlur={onRunQuery}
         />
       </InlineField>
       <InlineField label="Tag value" labelWidth={18}>
-        <Input
+        <Combobox<string>
           id="query-filter-tag-value"
           aria-label="Cost allocation tag value"
+          options={(input) => datasource.getCostAllocationTagValues(model.filter.tagKey ?? '', input).then(toOptions)}
           value={model.filter.tagValue ?? ''}
           placeholder="production"
           width={32}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => updateFilter('tagValue', event.currentTarget.value)}
+          disabled={!model.filter.tagKey}
+          createCustomValue
+          isClearable
+          onChange={(option) => updateFilter('tagValue', option?.value ?? '')}
           onBlur={onRunQuery}
         />
       </InlineField>

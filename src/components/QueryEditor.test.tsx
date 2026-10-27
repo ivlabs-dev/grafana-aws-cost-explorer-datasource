@@ -27,34 +27,68 @@ jest.mock('@grafana/ui', () => ({
     value: boolean;
   }) => <input id={id} type="checkbox" checked={value} onChange={onChange} />,
   Combobox: ({
+    'aria-label': ariaLabel,
     disabled,
     id,
     onChange,
     options,
     value,
   }: {
+    'aria-label'?: string;
     disabled?: boolean;
     id: string;
-    onChange: (value: { value: string }) => void;
-    options: Array<{ label: string; value: string }>;
+    onChange: (value: { value: string } | null) => void;
+    options:
+      Array<{ label: string; value: string }> | ((input: string) => Promise<Array<{ label: string; value: string }>>);
     value: string;
-  }) => (
-    <select
-      id={id}
-      disabled={disabled}
-      value={value}
-      onChange={(event) => onChange({ value: event.currentTarget.value })}
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  ),
+  }) => {
+    if (typeof options === 'function') {
+      // Async comboboxes (the filter fields) are rendered as a plain input in
+      // tests: the goal is asserting QueryEditor's wiring to the datasource
+      // (that typing triggers a lookup, and that a typed value still commits
+      // as a custom value), not re-testing Combobox's real async/select
+      // behavior.
+      return (
+        <input
+          id={id}
+          aria-label={ariaLabel}
+          disabled={disabled}
+          value={value}
+          onChange={(event) => {
+            const typed = event.currentTarget.value;
+            void options(typed);
+            onChange(typed ? { value: typed } : null);
+          }}
+        />
+      );
+    }
+    return (
+      <select
+        id={id}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        value={value}
+        onChange={(event) => onChange({ value: event.currentTarget.value })}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    );
+  },
 }));
 
-function renderEditor(query: CostQuery = DEFAULT_QUERY) {
+function createFakeDatasource() {
+  return {
+    getDimensionValues: jest.fn().mockResolvedValue([]),
+    getCostAllocationTagKeys: jest.fn().mockResolvedValue([]),
+    getCostAllocationTagValues: jest.fn().mockResolvedValue([]),
+  };
+}
+
+function renderEditor(query: CostQuery = DEFAULT_QUERY, datasource = createFakeDatasource()) {
   const onChange = jest.fn();
   const onRunQuery = jest.fn();
   const view = render(
@@ -62,12 +96,12 @@ function renderEditor(query: CostQuery = DEFAULT_QUERY) {
       query={query}
       onChange={onChange}
       onRunQuery={onRunQuery}
-      datasource={{} as never}
+      datasource={datasource as never}
       data={{} as never}
       range={{} as never}
     />
   );
-  return { ...view, onChange, onRunQuery };
+  return { ...view, datasource, onChange, onRunQuery };
 }
 
 describe('QueryEditor', () => {
@@ -108,7 +142,7 @@ describe('QueryEditor', () => {
         query={{ ...DEFAULT_QUERY, groupBy: ['SERVICE'] }}
         onChange={first.onChange}
         onRunQuery={first.onRunQuery}
-        datasource={{} as never}
+        datasource={first.datasource as never}
         data={{} as never}
         range={{} as never}
       />
@@ -144,5 +178,53 @@ describe('QueryEditor', () => {
 
     fireEvent.click(screen.getByLabelText('Include incomplete current period'));
     expect(view.onChange).toHaveBeenLastCalledWith(expect.objectContaining({ includeIncompletePeriod: true }));
+  });
+
+  it('looks up AWS service values as the user types and accepts a custom value', () => {
+    const { datasource, onChange } = renderEditor();
+
+    fireEvent.change(screen.getByLabelText('AWS service filter'), { target: { value: 'ec2' } });
+
+    expect(datasource.getDimensionValues).toHaveBeenCalledWith('SERVICE', 'ec2');
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filter: expect.objectContaining({ service: 'ec2' }) })
+    );
+  });
+
+  it('looks up linked account and region values by their own dimension', () => {
+    const { datasource } = renderEditor();
+
+    fireEvent.change(screen.getByLabelText('Linked account filter'), { target: { value: '1234' } });
+    expect(datasource.getDimensionValues).toHaveBeenCalledWith('LINKED_ACCOUNT', '1234');
+
+    fireEvent.change(screen.getByLabelText('Region filter'), { target: { value: 'eu' } });
+    expect(datasource.getDimensionValues).toHaveBeenCalledWith('REGION', 'eu');
+  });
+
+  it('disables the tag value field until a tag key is chosen, then scopes its lookup to that key', () => {
+    const { datasource, rerender, onChange } = renderEditor();
+
+    expect(screen.getByLabelText('Cost allocation tag value')).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText('Cost allocation tag key'), { target: { value: 'Environment' } });
+    expect(datasource.getCostAllocationTagKeys).toHaveBeenCalledWith('Environment');
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filter: expect.objectContaining({ tagKey: 'Environment' }) })
+    );
+
+    rerender(
+      <QueryEditor
+        query={{ ...DEFAULT_QUERY, filter: { tagKey: 'Environment' } }}
+        onChange={onChange}
+        onRunQuery={jest.fn()}
+        datasource={datasource as never}
+        data={{} as never}
+        range={{} as never}
+      />
+    );
+
+    expect(screen.getByLabelText('Cost allocation tag value')).not.toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Cost allocation tag value'), { target: { value: 'prod' } });
+    expect(datasource.getCostAllocationTagValues).toHaveBeenCalledWith('Environment', 'prod');
   });
 });

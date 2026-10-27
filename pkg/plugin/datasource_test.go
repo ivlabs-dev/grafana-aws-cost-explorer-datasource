@@ -50,6 +50,22 @@ func (fakeClient) GetCostAndUsage(
 	}, nil
 }
 
+func (fakeClient) GetDimensionValues(
+	context.Context,
+	*awscostexplorer.GetDimensionValuesInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetDimensionValuesOutput, error) {
+	return &awscostexplorer.GetDimensionValuesOutput{}, nil
+}
+
+func (fakeClient) GetTags(
+	context.Context,
+	*awscostexplorer.GetTagsInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetTagsOutput, error) {
+	return &awscostexplorer.GetTagsOutput{}, nil
+}
+
 type countingClient struct {
 	calls int
 }
@@ -61,6 +77,22 @@ func (c *countingClient) GetCostAndUsage(
 ) (*awscostexplorer.GetCostAndUsageOutput, error) {
 	c.calls++
 	return fakeClient{}.GetCostAndUsage(ctx, input, options...)
+}
+
+func (c *countingClient) GetDimensionValues(
+	ctx context.Context,
+	input *awscostexplorer.GetDimensionValuesInput,
+	options ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetDimensionValuesOutput, error) {
+	return fakeClient{}.GetDimensionValues(ctx, input, options...)
+}
+
+func (c *countingClient) GetTags(
+	ctx context.Context,
+	input *awscostexplorer.GetTagsInput,
+	options ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetTagsOutput, error) {
+	return fakeClient{}.GetTags(ctx, input, options...)
 }
 
 func TestQueryDataReturnsFrame(t *testing.T) {
@@ -388,6 +420,22 @@ func (c errorClient) GetCostAndUsage(
 	*awscostexplorer.GetCostAndUsageInput,
 	...func(*awscostexplorer.Options),
 ) (*awscostexplorer.GetCostAndUsageOutput, error) {
+	return nil, c.err
+}
+
+func (c errorClient) GetDimensionValues(
+	context.Context,
+	*awscostexplorer.GetDimensionValuesInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetDimensionValuesOutput, error) {
+	return nil, c.err
+}
+
+func (c errorClient) GetTags(
+	context.Context,
+	*awscostexplorer.GetTagsInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetTagsOutput, error) {
 	return nil, c.err
 }
 

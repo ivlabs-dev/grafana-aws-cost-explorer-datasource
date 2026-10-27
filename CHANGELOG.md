@@ -7,6 +7,11 @@
   highest-cost-service stat with a top-10 services bar chart and splits tax
   onto its own axis in the service breakdown.
 - Update the local development provisioning dashboard to match.
+- Add autocomplete suggestions to the query editor's AWS service, linked
+  account, region, tag key, and tag value filter fields, backed by AWS Cost
+  Explorer's `GetDimensionValues`/`GetTags` APIs. Free-text entry still works
+  as a fallback, including for data sources without the two new optional IAM
+  actions (`ce:GetDimensionValues`, `ce:GetTags`).
 
 ## 1.0.8 (2026-09-19)
 

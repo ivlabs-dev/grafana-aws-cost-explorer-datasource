@@ -19,6 +19,12 @@ type mockClient struct {
 	mu      sync.Mutex
 	calls   int
 	handler func(*awscostexplorer.GetCostAndUsageInput) (*awscostexplorer.GetCostAndUsageOutput, error)
+
+	dimensionValuesCalls int
+	dimensionValuesFn    func(*awscostexplorer.GetDimensionValuesInput) (*awscostexplorer.GetDimensionValuesOutput, error)
+
+	tagsCalls int
+	tagsFn    func(*awscostexplorer.GetTagsInput) (*awscostexplorer.GetTagsOutput, error)
 }
 
 func (m *mockClient) GetCostAndUsage(
@@ -30,6 +36,34 @@ func (m *mockClient) GetCostAndUsage(
 	m.calls++
 	m.mu.Unlock()
 	return m.handler(input)
+}
+
+func (m *mockClient) GetDimensionValues(
+	_ context.Context,
+	input *awscostexplorer.GetDimensionValuesInput,
+	_ ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetDimensionValuesOutput, error) {
+	m.mu.Lock()
+	m.dimensionValuesCalls++
+	m.mu.Unlock()
+	if m.dimensionValuesFn == nil {
+		return &awscostexplorer.GetDimensionValuesOutput{}, nil
+	}
+	return m.dimensionValuesFn(input)
+}
+
+func (m *mockClient) GetTags(
+	_ context.Context,
+	input *awscostexplorer.GetTagsInput,
+	_ ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetTagsOutput, error) {
+	m.mu.Lock()
+	m.tagsCalls++
+	m.mu.Unlock()
+	if m.tagsFn == nil {
+		return &awscostexplorer.GetTagsOutput{}, nil
+	}
+	return m.tagsFn(input)
 }
 
 func TestServicePaginationAndCache(t *testing.T) {
@@ -211,6 +245,209 @@ func TestBuildInputMapsFiltersAndAvailabilityZone(t *testing.T) {
 	}
 	if input.Filter == nil || len(input.Filter.And) != 4 {
 		t.Fatalf("filter = %+v, want four AND expressions", input.Filter)
+	}
+}
+
+func TestDimensionValuesReturnsSortedValues(t *testing.T) {
+	client := &mockClient{
+		dimensionValuesFn: func(input *awscostexplorer.GetDimensionValuesInput) (*awscostexplorer.GetDimensionValuesOutput, error) {
+			if input.Dimension != types.DimensionService {
+				t.Fatalf("dimension = %q, want SERVICE", input.Dimension)
+			}
+			if input.SearchString == nil || *input.SearchString != "ec2" {
+				t.Fatalf("search string = %v, want ec2", input.SearchString)
+			}
+			return &awscostexplorer.GetDimensionValuesOutput{
+				DimensionValues: []types.DimensionValuesWithAttributes{
+					{Value: aws.String("Amazon EC2 Container Registry (ECR)")},
+					{Value: aws.String("Amazon Elastic Compute Cloud - Compute")},
+				},
+			}, nil
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	values, err := service.DimensionValues(
+		context.Background(),
+		validSettings(),
+		"SERVICE",
+		"ec2",
+		models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Amazon EC2 Container Registry (ECR)", "Amazon Elastic Compute Cloud - Compute"}
+	if len(values) != len(want) || values[0] != want[0] || values[1] != want[1] {
+		t.Fatalf("values = %v, want %v", values, want)
+	}
+}
+
+func TestDimensionValuesRejectsUnsupportedDimension(t *testing.T) {
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(&mockClient{}, resultCache)
+
+	_, err := service.DimensionValues(
+		context.Background(),
+		validSettings(),
+		"USAGE_TYPE",
+		"",
+		models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err == nil {
+		t.Fatal("expected an error for an unsupported dimension")
+	}
+}
+
+func TestDimensionValuesOmitsBlankValues(t *testing.T) {
+	// AWS returns an empty-string REGION value for charges that aren't
+	// attributed to a specific region (e.g. taxes); it's not a selectable
+	// filter value, so this plugin drops it rather than suggesting a blank
+	// option.
+	client := &mockClient{
+		dimensionValuesFn: func(*awscostexplorer.GetDimensionValuesInput) (*awscostexplorer.GetDimensionValuesOutput, error) {
+			return &awscostexplorer.GetDimensionValuesOutput{
+				DimensionValues: []types.DimensionValuesWithAttributes{
+					{Value: aws.String("")},
+					{Value: aws.String("us-east-1")},
+				},
+			}, nil
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	values, err := service.DimensionValues(
+		context.Background(),
+		validSettings(),
+		"REGION",
+		"",
+		models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(values) != 1 || values[0] != "us-east-1" {
+		t.Fatalf("values = %v, want only us-east-1", values)
+	}
+}
+
+func TestDimensionValuesCachesResult(t *testing.T) {
+	client := &mockClient{
+		dimensionValuesFn: func(*awscostexplorer.GetDimensionValuesInput) (*awscostexplorer.GetDimensionValuesOutput, error) {
+			return &awscostexplorer.GetDimensionValuesOutput{
+				DimensionValues: []types.DimensionValuesWithAttributes{{Value: aws.String("eu-west-1")}},
+			}, nil
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+	dateRange := models.DateRange{Start: "2026-07-01", End: "2026-07-02"}
+
+	if _, err := service.DimensionValues(context.Background(), validSettings(), "REGION", "", dateRange); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.DimensionValues(context.Background(), validSettings(), "REGION", "", dateRange); err != nil {
+		t.Fatal(err)
+	}
+	if client.dimensionValuesCalls != 1 {
+		t.Fatalf("AWS calls = %d, want one call reused from cache", client.dimensionValuesCalls)
+	}
+}
+
+func TestDimensionValuesClassifiesAWSError(t *testing.T) {
+	client := &mockClient{
+		dimensionValuesFn: func(*awscostexplorer.GetDimensionValuesInput) (*awscostexplorer.GetDimensionValuesOutput, error) {
+			return nil, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "denied"}
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	_, err := service.DimensionValues(
+		context.Background(),
+		validSettings(),
+		"SERVICE",
+		"",
+		models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err == nil {
+		t.Fatal("expected a classified AWS error")
+	}
+	if got := err.Error(); got != "AWS denied the request; grant ce:GetCostAndUsage and verify the role trust policy" {
+		t.Fatalf("error = %q", got)
+	}
+}
+
+func TestTagKeysReturnsSortedValues(t *testing.T) {
+	client := &mockClient{
+		tagsFn: func(input *awscostexplorer.GetTagsInput) (*awscostexplorer.GetTagsOutput, error) {
+			if input.TagKey != nil {
+				t.Fatalf("tag key = %v, want nil for a tag-key lookup", input.TagKey)
+			}
+			return &awscostexplorer.GetTagsOutput{Tags: []string{"Team", "Environment"}}, nil
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	values, err := service.TagKeys(
+		context.Background(),
+		validSettings(),
+		"",
+		models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Environment", "Team"}
+	if len(values) != len(want) || values[0] != want[0] || values[1] != want[1] {
+		t.Fatalf("values = %v, want %v", values, want)
+	}
+}
+
+func TestTagValuesRequiresKey(t *testing.T) {
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(&mockClient{}, resultCache)
+
+	_, err := service.TagValues(
+		context.Background(),
+		validSettings(),
+		"",
+		"",
+		models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err == nil {
+		t.Fatal("expected an error when the tag key is missing")
+	}
+}
+
+func TestTagValuesReturnsSortedValues(t *testing.T) {
+	client := &mockClient{
+		tagsFn: func(input *awscostexplorer.GetTagsInput) (*awscostexplorer.GetTagsOutput, error) {
+			if input.TagKey == nil || *input.TagKey != "Environment" {
+				t.Fatalf("tag key = %v, want Environment", input.TagKey)
+			}
+			return &awscostexplorer.GetTagsOutput{Tags: []string{"staging", "production"}}, nil
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	values, err := service.TagValues(
+		context.Background(),
+		validSettings(),
+		"Environment",
+		"",
+		models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"production", "staging"}
+	if len(values) != len(want) || values[0] != want[0] || values[1] != want[1] {
+		t.Fatalf("values = %v, want %v", values, want)
 	}
 }
 

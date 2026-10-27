@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -19,7 +20,22 @@ import (
 	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/models"
 )
 
-const maxPages = 1_000
+const (
+	maxPages = 1_000
+	// lookupMaxResults bounds how many suggestions this plugin returns for
+	// dimension-value and tag lookups, applied client-side. AWS's GetTags API
+	// rejects a MaxResults parameter unless paired with SortBy, so for tags
+	// this plugin truncates after fetching instead of asking AWS to limit it.
+	lookupMaxResults = 100
+)
+
+// FilterableDimensions are the Cost Explorer dimensions this plugin's query
+// filter supports, and therefore the only ones value lookup accepts.
+var FilterableDimensions = map[string]struct{}{
+	"SERVICE":        {},
+	"LINKED_ACCOUNT": {},
+	"REGION":         {},
+}
 
 type Service struct {
 	client awsclient.CostExplorerAPI
@@ -199,6 +215,175 @@ func CacheKey(credentialContext string, query models.Query, dateRange models.Dat
 	}
 	digest := sha256.Sum256(encoded)
 	return hex.EncodeToString(digest[:]), nil
+}
+
+// DimensionValues returns known AWS Cost Explorer values for a filterable
+// dimension (SERVICE, LINKED_ACCOUNT, or REGION), optionally narrowed by a
+// search string. Results are cached like Execute to bound AWS API usage.
+func (s *Service) DimensionValues(
+	ctx context.Context,
+	settings models.PluginSettings,
+	dimension string,
+	search string,
+	dateRange models.DateRange,
+) ([]string, error) {
+	if _, ok := FilterableDimensions[dimension]; !ok {
+		return nil, fmt.Errorf("dimension %q does not support value lookup", dimension)
+	}
+
+	timePeriod, err := dateInterval(dateRange)
+	if err != nil {
+		return nil, err
+	}
+
+	input := &awscostexplorer.GetDimensionValuesInput{
+		Dimension:  types.Dimension(dimension),
+		TimePeriod: timePeriod,
+		MaxResults: aws.Int32(lookupMaxResults),
+	}
+	if strings.TrimSpace(search) != "" {
+		input.SearchString = aws.String(search)
+	}
+
+	return s.cachedLookup(ctx, settings, []string{"dimension-values", dimension, search}, dateRange,
+		func(loadContext context.Context) ([]string, error) {
+			output, loadErr := s.client.GetDimensionValues(loadContext, input)
+			if loadErr != nil {
+				return nil, loadErr
+			}
+			values := make([]string, 0, len(output.DimensionValues))
+			for _, dv := range output.DimensionValues {
+				if dv.Value != nil && strings.TrimSpace(*dv.Value) != "" {
+					values = append(values, *dv.Value)
+				}
+			}
+			sort.Strings(values)
+			return values, nil
+		})
+}
+
+// TagKeys returns known Cost Allocation Tag keys, optionally narrowed by a
+// search string.
+func (s *Service) TagKeys(
+	ctx context.Context,
+	settings models.PluginSettings,
+	search string,
+	dateRange models.DateRange,
+) ([]string, error) {
+	return s.tags(ctx, settings, "", search, dateRange)
+}
+
+// TagValues returns known values for a specific Cost Allocation Tag key,
+// optionally narrowed by a search string.
+func (s *Service) TagValues(
+	ctx context.Context,
+	settings models.PluginSettings,
+	key string,
+	search string,
+	dateRange models.DateRange,
+) ([]string, error) {
+	if strings.TrimSpace(key) == "" {
+		return nil, fmt.Errorf("tag key is required to look up tag values")
+	}
+	return s.tags(ctx, settings, key, search, dateRange)
+}
+
+func (s *Service) tags(
+	ctx context.Context,
+	settings models.PluginSettings,
+	key string,
+	search string,
+	dateRange models.DateRange,
+) ([]string, error) {
+	timePeriod, err := dateInterval(dateRange)
+	if err != nil {
+		return nil, err
+	}
+
+	// GetTags rejects MaxResults unless it's paired with SortBy (unlike
+	// GetDimensionValues), so this plugin fetches AWS's default result set
+	// and truncates it after sorting instead.
+	input := &awscostexplorer.GetTagsInput{
+		TimePeriod: timePeriod,
+	}
+	if key != "" {
+		input.TagKey = aws.String(key)
+	}
+	if strings.TrimSpace(search) != "" {
+		input.SearchString = aws.String(search)
+	}
+
+	return s.cachedLookup(ctx, settings, []string{"tags", key, search}, dateRange,
+		func(loadContext context.Context) ([]string, error) {
+			output, loadErr := s.client.GetTags(loadContext, input)
+			if loadErr != nil {
+				return nil, loadErr
+			}
+			values := make([]string, 0, len(output.Tags))
+			for _, tag := range output.Tags {
+				if strings.TrimSpace(tag) != "" {
+					values = append(values, tag)
+				}
+			}
+			sort.Strings(values)
+			if len(values) > lookupMaxResults {
+				values = values[:lookupMaxResults]
+			}
+			return values, nil
+		})
+}
+
+func (s *Service) cachedLookup(
+	ctx context.Context,
+	settings models.PluginSettings,
+	discriminator []string,
+	dateRange models.DateRange,
+	load func(context.Context) ([]string, error),
+) ([]string, error) {
+	key, err := lookupCacheKey(settings.CredentialContext(), discriminator, dateRange)
+	if err != nil {
+		return nil, err
+	}
+
+	value, _, err := s.cache.GetOrLoad(ctx, key, func(loadContext context.Context) (any, error) {
+		return load(loadContext)
+	})
+	if err != nil {
+		return nil, ClassifyError(err)
+	}
+	values, ok := value.([]string)
+	if !ok {
+		return nil, fmt.Errorf("cache returned an invalid AWS Cost Explorer lookup response")
+	}
+	return values, nil
+}
+
+func lookupCacheKey(credentialContext string, discriminator []string, dateRange models.DateRange) (string, error) {
+	payload := struct {
+		CredentialContext string           `json:"credentialContext"`
+		DateRange         models.DateRange `json:"dateRange"`
+		Discriminator     []string         `json:"discriminator"`
+	}{
+		CredentialContext: credentialContext,
+		DateRange:         dateRange,
+		Discriminator:     discriminator,
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("encode lookup cache key: %w", err)
+	}
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:]), nil
+}
+
+func dateInterval(dateRange models.DateRange) (*types.DateInterval, error) {
+	if dateRange.Start == "" || dateRange.End == "" {
+		return nil, fmt.Errorf("date range for AWS Cost Explorer lookup must include start and end dates")
+	}
+	return &types.DateInterval{
+		Start: aws.String(dateRange.Start),
+		End:   aws.String(dateRange.End),
+	}, nil
 }
 
 func (s *Service) fetchAll(
