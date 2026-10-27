@@ -66,6 +66,22 @@ func (fakeClient) GetTags(
 	return &awscostexplorer.GetTagsOutput{}, nil
 }
 
+func (fakeClient) GetReservationUtilization(
+	context.Context,
+	*awscostexplorer.GetReservationUtilizationInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetReservationUtilizationOutput, error) {
+	return &awscostexplorer.GetReservationUtilizationOutput{}, nil
+}
+
+func (fakeClient) GetSavingsPlansUtilization(
+	context.Context,
+	*awscostexplorer.GetSavingsPlansUtilizationInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetSavingsPlansUtilizationOutput, error) {
+	return &awscostexplorer.GetSavingsPlansUtilizationOutput{}, nil
+}
+
 type countingClient struct {
 	calls int
 }
@@ -93,6 +109,22 @@ func (c *countingClient) GetTags(
 	options ...func(*awscostexplorer.Options),
 ) (*awscostexplorer.GetTagsOutput, error) {
 	return fakeClient{}.GetTags(ctx, input, options...)
+}
+
+func (c *countingClient) GetReservationUtilization(
+	ctx context.Context,
+	input *awscostexplorer.GetReservationUtilizationInput,
+	options ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetReservationUtilizationOutput, error) {
+	return fakeClient{}.GetReservationUtilization(ctx, input, options...)
+}
+
+func (c *countingClient) GetSavingsPlansUtilization(
+	ctx context.Context,
+	input *awscostexplorer.GetSavingsPlansUtilizationInput,
+	options ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetSavingsPlansUtilizationOutput, error) {
+	return fakeClient{}.GetSavingsPlansUtilization(ctx, input, options...)
 }
 
 func TestQueryDataReturnsFrame(t *testing.T) {
@@ -436,6 +468,22 @@ func (c errorClient) GetTags(
 	*awscostexplorer.GetTagsInput,
 	...func(*awscostexplorer.Options),
 ) (*awscostexplorer.GetTagsOutput, error) {
+	return nil, c.err
+}
+
+func (c errorClient) GetReservationUtilization(
+	context.Context,
+	*awscostexplorer.GetReservationUtilizationInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetReservationUtilizationOutput, error) {
+	return nil, c.err
+}
+
+func (c errorClient) GetSavingsPlansUtilization(
+	context.Context,
+	*awscostexplorer.GetSavingsPlansUtilizationInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetSavingsPlansUtilizationOutput, error) {
 	return nil, c.err
 }
 

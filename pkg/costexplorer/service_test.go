@@ -25,6 +25,12 @@ type mockClient struct {
 
 	tagsCalls int
 	tagsFn    func(*awscostexplorer.GetTagsInput) (*awscostexplorer.GetTagsOutput, error)
+
+	reservationUtilizationCalls int
+	reservationUtilizationFn    func(*awscostexplorer.GetReservationUtilizationInput) (*awscostexplorer.GetReservationUtilizationOutput, error)
+
+	savingsPlansUtilizationCalls int
+	savingsPlansUtilizationFn    func(*awscostexplorer.GetSavingsPlansUtilizationInput) (*awscostexplorer.GetSavingsPlansUtilizationOutput, error)
 }
 
 func (m *mockClient) GetCostAndUsage(
@@ -64,6 +70,34 @@ func (m *mockClient) GetTags(
 		return &awscostexplorer.GetTagsOutput{}, nil
 	}
 	return m.tagsFn(input)
+}
+
+func (m *mockClient) GetReservationUtilization(
+	_ context.Context,
+	input *awscostexplorer.GetReservationUtilizationInput,
+	_ ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetReservationUtilizationOutput, error) {
+	m.mu.Lock()
+	m.reservationUtilizationCalls++
+	m.mu.Unlock()
+	if m.reservationUtilizationFn == nil {
+		return &awscostexplorer.GetReservationUtilizationOutput{}, nil
+	}
+	return m.reservationUtilizationFn(input)
+}
+
+func (m *mockClient) GetSavingsPlansUtilization(
+	_ context.Context,
+	input *awscostexplorer.GetSavingsPlansUtilizationInput,
+	_ ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetSavingsPlansUtilizationOutput, error) {
+	m.mu.Lock()
+	m.savingsPlansUtilizationCalls++
+	m.mu.Unlock()
+	if m.savingsPlansUtilizationFn == nil {
+		return &awscostexplorer.GetSavingsPlansUtilizationOutput{}, nil
+	}
+	return m.savingsPlansUtilizationFn(input)
 }
 
 func TestServicePaginationAndCache(t *testing.T) {
@@ -448,6 +482,183 @@ func TestTagValuesReturnsSortedValues(t *testing.T) {
 	want := []string{"production", "staging"}
 	if len(values) != len(want) || values[0] != want[0] || values[1] != want[1] {
 		t.Fatalf("values = %v, want %v", values, want)
+	}
+}
+
+func reservationUtilizationQuery() models.Query {
+	q := models.Query{
+		Version:     models.QueryVersion,
+		QueryType:   models.QueryTypeReservationUtilization,
+		Granularity: models.GranularityDaily,
+		Format:      models.FormatTimeSeries,
+	}
+	q.ApplyDefaults()
+	return q
+}
+
+func savingsPlansUtilizationQuery() models.Query {
+	q := models.Query{
+		Version:     models.QueryVersion,
+		QueryType:   models.QueryTypeSavingsPlansUtilization,
+		Granularity: models.GranularityDaily,
+		Format:      models.FormatTimeSeries,
+	}
+	q.ApplyDefaults()
+	return q
+}
+
+func TestReservationUtilizationPaginatesAndCaches(t *testing.T) {
+	client := &mockClient{
+		reservationUtilizationFn: func(
+			input *awscostexplorer.GetReservationUtilizationInput,
+		) (*awscostexplorer.GetReservationUtilizationOutput, error) {
+			if input.NextPageToken == nil {
+				return &awscostexplorer.GetReservationUtilizationOutput{
+					NextPageToken: aws.String("page-2"),
+					UtilizationsByTime: []types.UtilizationByTime{{
+						TimePeriod: &types.DateInterval{Start: aws.String("2026-07-01")},
+						Total:      &types.ReservationAggregates{UtilizationPercentage: aws.String("80.0")},
+					}},
+				}, nil
+			}
+			return &awscostexplorer.GetReservationUtilizationOutput{
+				UtilizationsByTime: []types.UtilizationByTime{{
+					TimePeriod: &types.DateInterval{Start: aws.String("2026-07-02")},
+					Total:      &types.ReservationAggregates{UtilizationPercentage: aws.String("90.0")},
+				}},
+			}, nil
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+	dateRange := models.DateRange{Start: "2026-07-01", End: "2026-07-03"}
+
+	first, err := service.ReservationUtilization(context.Background(), validSettings(), reservationUtilizationQuery(), dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Pages != 2 || first.CacheResult != cache.ResultMiss || len(first.Output.UtilizationsByTime) != 2 {
+		t.Fatalf("unexpected first execution: %+v", first)
+	}
+
+	second, err := service.ReservationUtilization(context.Background(), validSettings(), reservationUtilizationQuery(), dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.CacheResult != cache.ResultHit {
+		t.Fatalf("second cache result = %s, want hit", second.CacheResult)
+	}
+	if client.reservationUtilizationCalls != 2 {
+		t.Fatalf("AWS calls = %d, want two pages from one logical request", client.reservationUtilizationCalls)
+	}
+}
+
+func TestReservationUtilizationGroupsBySubscription(t *testing.T) {
+	client := &mockClient{
+		reservationUtilizationFn: func(
+			input *awscostexplorer.GetReservationUtilizationInput,
+		) (*awscostexplorer.GetReservationUtilizationOutput, error) {
+			if len(input.GroupBy) != 1 || string(*input.GroupBy[0].Key) != "SUBSCRIPTION_ID" {
+				t.Fatalf("groupBy = %+v, want SUBSCRIPTION_ID", input.GroupBy)
+			}
+			if input.Granularity != "" {
+				t.Fatalf("granularity = %q, want empty when grouped", input.Granularity)
+			}
+			return &awscostexplorer.GetReservationUtilizationOutput{
+				UtilizationsByTime: []types.UtilizationByTime{{
+					TimePeriod: &types.DateInterval{Start: aws.String("2026-07-01")},
+					Groups: []types.ReservationUtilizationGroup{
+						{Value: aws.String("sub-1"), Utilization: &types.ReservationAggregates{UtilizationPercentage: aws.String("70.0")}},
+					},
+				}},
+			}, nil
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	query := reservationUtilizationQuery()
+	query.GroupBySubscription = true
+
+	execution, err := service.ReservationUtilization(
+		context.Background(), validSettings(), query, models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(execution.Output.UtilizationsByTime[0].Groups) != 1 {
+		t.Fatalf("groups = %+v, want one subscription group", execution.Output.UtilizationsByTime[0].Groups)
+	}
+}
+
+func TestReservationUtilizationClassifiesAWSError(t *testing.T) {
+	client := &mockClient{
+		reservationUtilizationFn: func(*awscostexplorer.GetReservationUtilizationInput) (*awscostexplorer.GetReservationUtilizationOutput, error) {
+			return nil, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "denied"}
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	_, err := service.ReservationUtilization(
+		context.Background(), validSettings(), reservationUtilizationQuery(), models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err == nil {
+		t.Fatal("expected a classified AWS error")
+	}
+}
+
+func TestSavingsPlansUtilizationCaches(t *testing.T) {
+	client := &mockClient{
+		savingsPlansUtilizationFn: func(
+			*awscostexplorer.GetSavingsPlansUtilizationInput,
+		) (*awscostexplorer.GetSavingsPlansUtilizationOutput, error) {
+			return &awscostexplorer.GetSavingsPlansUtilizationOutput{
+				SavingsPlansUtilizationsByTime: []types.SavingsPlansUtilizationByTime{{
+					TimePeriod:  &types.DateInterval{Start: aws.String("2026-07-01")},
+					Utilization: &types.SavingsPlansUtilization{UtilizationPercentage: aws.String("95.0")},
+				}},
+			}, nil
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+	dateRange := models.DateRange{Start: "2026-07-01", End: "2026-07-02"}
+
+	first, err := service.SavingsPlansUtilization(context.Background(), validSettings(), savingsPlansUtilizationQuery(), dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.CacheResult != cache.ResultMiss || len(first.Output.SavingsPlansUtilizationsByTime) != 1 {
+		t.Fatalf("unexpected first execution: %+v", first)
+	}
+
+	second, err := service.SavingsPlansUtilization(context.Background(), validSettings(), savingsPlansUtilizationQuery(), dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.CacheResult != cache.ResultHit {
+		t.Fatalf("second cache result = %s, want hit", second.CacheResult)
+	}
+	if client.savingsPlansUtilizationCalls != 1 {
+		t.Fatalf("AWS calls = %d, want one call reused from cache", client.savingsPlansUtilizationCalls)
+	}
+}
+
+func TestSavingsPlansUtilizationClassifiesAWSError(t *testing.T) {
+	client := &mockClient{
+		savingsPlansUtilizationFn: func(*awscostexplorer.GetSavingsPlansUtilizationInput) (*awscostexplorer.GetSavingsPlansUtilizationOutput, error) {
+			return nil, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "denied"}
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	_, err := service.SavingsPlansUtilization(
+		context.Background(), validSettings(), savingsPlansUtilizationQuery(), models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err == nil {
+		t.Fatal("expected a classified AWS error")
 	}
 }
 

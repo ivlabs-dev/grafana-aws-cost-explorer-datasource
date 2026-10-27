@@ -227,4 +227,73 @@ describe('QueryEditor', () => {
     fireEvent.change(screen.getByLabelText('Cost allocation tag value'), { target: { value: 'prod' } });
     expect(datasource.getCostAllocationTagValues).toHaveBeenCalledWith('Environment', 'prod');
   });
+
+  it('switches to Reservation utilization and shows its own fields, hiding cost-and-usage-only ones', () => {
+    const first = renderEditor();
+
+    fireEvent.change(screen.getByLabelText('Query type'), { target: { value: 'reservationUtilization' } });
+
+    expect(first.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        queryType: 'reservationUtilization',
+        groupBy: [],
+        topN: 0,
+        filter: {},
+        groupBySubscription: false,
+        utilizationMetric: 'UtilizationPercentage',
+      })
+    );
+
+    first.rerender(
+      <QueryEditor
+        query={{ ...DEFAULT_QUERY, queryType: 'reservationUtilization' }}
+        onChange={first.onChange}
+        onRunQuery={first.onRunQuery}
+        datasource={first.datasource as never}
+        data={{} as never}
+        range={{} as never}
+      />
+    );
+
+    expect(screen.getByLabelText('AWS service filter')).toBeInTheDocument();
+    expect(screen.getByLabelText('Group by subscription ID')).toBeInTheDocument();
+    expect(screen.getByLabelText('Utilization metric')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Metric')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Group by 1')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Cost allocation tag key')).not.toBeInTheDocument();
+  });
+
+  it('hides the service filter and group-by-subscription switch for Savings Plans utilization', () => {
+    renderEditor({ ...DEFAULT_QUERY, queryType: 'savingsPlansUtilization' });
+
+    expect(screen.getByLabelText('Linked account filter')).toBeInTheDocument();
+    expect(screen.getByLabelText('Region filter')).toBeInTheDocument();
+    expect(screen.queryByLabelText('AWS service filter')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Group by subscription ID')).not.toBeInTheDocument();
+  });
+
+  it('only shows the utilization metric selector in time-series format', () => {
+    const view = renderEditor({ ...DEFAULT_QUERY, queryType: 'reservationUtilization', format: 'table' });
+    expect(screen.queryByLabelText('Utilization metric')).not.toBeInTheDocument();
+
+    view.rerender(
+      <QueryEditor
+        query={{ ...DEFAULT_QUERY, queryType: 'reservationUtilization', format: 'timeSeries' }}
+        onChange={view.onChange}
+        onRunQuery={view.onRunQuery}
+        datasource={view.datasource as never}
+        data={{} as never}
+        range={{} as never}
+      />
+    );
+    expect(screen.getByLabelText('Utilization metric')).toBeInTheDocument();
+  });
+
+  it('toggles reservation utilization group-by-subscription', () => {
+    const view = renderEditor({ ...DEFAULT_QUERY, queryType: 'reservationUtilization' });
+
+    fireEvent.click(screen.getByLabelText('Group by subscription ID'));
+
+    expect(view.onChange).toHaveBeenLastCalledWith(expect.objectContaining({ groupBySubscription: true }));
+  });
 });

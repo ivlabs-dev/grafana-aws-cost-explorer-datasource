@@ -4,7 +4,13 @@
     {
       "Sid": "ReadCostExplorer",
       "Effect": "Allow",
-      "Action": ["ce:GetCostAndUsage", "ce:GetDimensionValues", "ce:GetTags"],
+      "Action": [
+        "ce:GetCostAndUsage",
+        "ce:GetDimensionValues",
+        "ce:GetTags",
+        "ce:GetReservationUtilization",
+        "ce:GetSavingsPlansUtilization"
+      ],
       "Resource": "*"
     }
   ]

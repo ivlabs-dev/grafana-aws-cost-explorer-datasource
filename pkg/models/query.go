@@ -23,7 +23,39 @@ const (
 	DefaultTopN                    = 0
 	DefaultIncludeOther            = true
 	DefaultAlignMonthlyToCalendar  = true
+
+	QueryTypeCostAndUsage            = "costAndUsage"
+	QueryTypeReservationUtilization  = "reservationUtilization"
+	QueryTypeSavingsPlansUtilization = "savingsPlansUtilization"
+
+	DefaultUtilizationMetric = "UtilizationPercentage"
 )
+
+// ReservationUtilizationMetrics is the curated subset of
+// types.ReservationAggregates fields this plugin exposes as a selectable
+// time-series metric or a table column. AWS returns ~17 fields; this list is
+// an intentional, documented scope boundary rather than the full set.
+var ReservationUtilizationMetrics = []string{
+	"UtilizationPercentage",
+	"NetRISavings",
+	"OnDemandCostOfRIHoursUsed",
+	"TotalAmortizedFee",
+	"UnusedHours",
+	"RealizedSavings",
+	"UnrealizedSavings",
+}
+
+// SavingsPlansUtilizationMetrics is the curated subset of Savings Plans
+// utilization/savings/amortized-commitment fields this plugin exposes.
+var SavingsPlansUtilizationMetrics = []string{
+	"UtilizationPercentage",
+	"UsedCommitment",
+	"UnusedCommitment",
+	"TotalCommitment",
+	"NetSavings",
+	"OnDemandCostEquivalent",
+	"TotalAmortizedCommitment",
+}
 
 var validMetrics = map[string]struct{}{
 	"UnblendedCost":    {},
@@ -47,6 +79,7 @@ var validGroupings = map[string]struct{}{
 
 type Query struct {
 	Version                 int         `json:"version"`
+	QueryType               string      `json:"queryType,omitempty"`
 	Metric                  string      `json:"metric"`
 	Granularity             string      `json:"granularity"`
 	GroupBy                 []string    `json:"groupBy,omitempty"`
@@ -57,6 +90,8 @@ type Query struct {
 	IncludeOther            *bool       `json:"includeOther,omitempty"`
 	AlignMonthlyToCalendar  *bool       `json:"alignMonthlyToCalendar,omitempty"`
 	RangeMode               string      `json:"rangeMode"`
+	GroupBySubscription     bool        `json:"groupBySubscription,omitempty"`
+	UtilizationMetric       string      `json:"utilizationMetric,omitempty"`
 }
 
 type QueryFilter struct {
@@ -75,6 +110,9 @@ type DateRange struct {
 func (q *Query) ApplyDefaults() {
 	if q.Version == 0 {
 		q.Version = QueryVersion
+	}
+	if q.QueryType == "" {
+		q.QueryType = QueryTypeCostAndUsage
 	}
 	if q.Metric == "" {
 		q.Metric = "UnblendedCost"
@@ -97,20 +135,49 @@ func (q *Query) ApplyDefaults() {
 	if q.RangeMode == "" {
 		q.RangeMode = RangeModeDashboard
 	}
+	if q.UtilizationMetric == "" {
+		q.UtilizationMetric = DefaultUtilizationMetric
+	}
+}
+
+// IsUtilizationQuery reports whether this query targets one of the
+// Reservation/Savings Plans utilization APIs rather than GetCostAndUsage.
+func (q Query) IsUtilizationQuery() bool {
+	switch q.QueryType {
+	case QueryTypeReservationUtilization, QueryTypeSavingsPlansUtilization:
+		return true
+	default:
+		return false
+	}
 }
 
 func (q Query) Validate() error {
 	if q.Version != QueryVersion {
 		return fmt.Errorf("query model version %d is unsupported; expected version %d", q.Version, QueryVersion)
 	}
-	if _, ok := validMetrics[q.Metric]; !ok {
-		return fmt.Errorf("metric %q is unsupported", q.Metric)
+	switch q.QueryType {
+	case "", QueryTypeCostAndUsage, QueryTypeReservationUtilization, QueryTypeSavingsPlansUtilization:
+	default:
+		return fmt.Errorf("query type %q is unsupported", q.QueryType)
 	}
 	if q.Granularity != GranularityDaily && q.Granularity != GranularityMonthly {
 		return fmt.Errorf("granularity must be DAILY or MONTHLY")
 	}
 	if q.Format != FormatTimeSeries && q.Format != FormatTable {
 		return fmt.Errorf("result format must be timeSeries or table")
+	}
+	switch q.RangeMode {
+	case "", RangeModeDashboard, RangeModeMonthToDate, RangeModePreviousEquivalentPeriod:
+	default:
+		return fmt.Errorf("query range mode %q is unsupported", q.RangeMode)
+	}
+
+	if q.IsUtilizationQuery() {
+		return q.validateUtilization()
+	}
+
+	if _, ok := validMetrics[q.Metric]; !ok {
+		return fmt.Errorf("metric %q is unsupported", q.Metric)
 	}
 	if len(q.GroupBy) > 2 {
 		return fmt.Errorf("AWS Cost Explorer supports at most two group-by dimensions")
@@ -122,11 +189,6 @@ func (q Query) Validate() error {
 	}
 	if q.TopN > 0 && len(q.GroupBy) == 0 {
 		return fmt.Errorf("top N requires at least one group-by dimension")
-	}
-	switch q.RangeMode {
-	case "", RangeModeDashboard, RangeModeMonthToDate, RangeModePreviousEquivalentPeriod:
-	default:
-		return fmt.Errorf("query range mode %q is unsupported", q.RangeMode)
 	}
 
 	seen := make(map[string]struct{}, len(q.GroupBy))
@@ -147,6 +209,38 @@ func (q Query) Validate() error {
 	}
 
 	return nil
+}
+
+// validateUtilization applies the narrower rules for
+// QueryTypeReservationUtilization/QueryTypeSavingsPlansUtilization: neither
+// AWS API supports cost allocation tag filtering, Savings Plans utilization
+// doesn't support a SERVICE filter or any grouping, and the selected
+// utilization metric must be one this plugin actually knows how to render.
+func (q Query) validateUtilization() error {
+	if strings.TrimSpace(q.Filter.TagKey) != "" || strings.TrimSpace(q.Filter.TagValue) != "" {
+		return fmt.Errorf("cost allocation tag filtering is not supported for %q queries", q.QueryType)
+	}
+
+	var allowedMetrics []string
+	switch q.QueryType {
+	case QueryTypeReservationUtilization:
+		allowedMetrics = ReservationUtilizationMetrics
+	case QueryTypeSavingsPlansUtilization:
+		if strings.TrimSpace(q.Filter.Service) != "" {
+			return fmt.Errorf("the service filter is not supported for Savings Plans utilization queries")
+		}
+		if q.GroupBySubscription {
+			return fmt.Errorf("grouping by subscription is not supported for Savings Plans utilization queries")
+		}
+		allowedMetrics = SavingsPlansUtilizationMetrics
+	}
+
+	for _, metric := range allowedMetrics {
+		if metric == q.UtilizationMetric {
+			return nil
+		}
+	}
+	return fmt.Errorf("utilization metric %q is unsupported for %q queries", q.UtilizationMetric, q.QueryType)
 }
 
 func (q Query) IncludeOtherValue() bool {

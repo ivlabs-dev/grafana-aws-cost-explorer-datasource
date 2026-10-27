@@ -9,7 +9,8 @@ The standard development container mounts this directory at
 - `dashboards/json/aws-cost-explorer.json` demonstrates cost-in-period,
   month-to-date, and change-vs-previous-period stats, total daily cost, cost
   by service (with tax split onto its own axis), the top 10 cost services,
-  cost by linked account, and a monthly amortized-cost table. It mirrors the
+  cost by linked account, a monthly amortized-cost table, and Reservation/
+  Savings Plans utilization stats and detail tables. It mirrors the
   dashboard bundled with the plugin itself at `src/dashboards/overview.json`.
 
 Export AWS variables before `docker compose up` if you want the container to

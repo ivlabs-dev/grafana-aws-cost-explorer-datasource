@@ -7,18 +7,23 @@ API requests.
 This independent open-source backend data-source plugin supports encrypted
 static credentials and AssumeRole with explicit source credentials. It queries
 `GetCostAndUsage`, follows AWS pagination, and returns native Grafana
-time-series or table data frames.
+time-series or table data frames. Reservation and Savings Plans utilization
+are also available as separate query types.
 
 ## Highlights
 
 - visual metric, daily/monthly granularity, grouping, filtering, and format
   controls
 - up to two Cost Explorer grouping dimensions
-- AWS service, linked account, region, and cost allocation tag filters
+- AWS service, linked account, region, and cost allocation tag filters, with
+  autocomplete suggestions from live AWS data where permitted
+- Reservation and Savings Plans utilization query types, with a curated
+  metric set in table and time-series form
 - bounded 15-minute TTL/LRU cache by default
 - one AWS API call for identical concurrent cache misses
 - no AWS secrets returned to the browser or logged
-- least-privilege target policy: `ce:GetCostAndUsage`
+- least-privilege target policy: `ce:GetCostAndUsage`, plus optional actions
+  for autocomplete and utilization queries
 
 ## Configuration
 

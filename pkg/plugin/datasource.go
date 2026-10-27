@@ -139,6 +139,24 @@ func (d *Datasource) query(ctx context.Context, query backend.DataQuery) backend
 		return backend.ErrDataResponse(backend.StatusValidationFailed, err.Error())
 	}
 
+	switch model.QueryType {
+	case models.QueryTypeReservationUtilization:
+		return d.queryReservationUtilization(ctx, query, model, resolved, started, logger)
+	case models.QueryTypeSavingsPlansUtilization:
+		return d.querySavingsPlansUtilization(ctx, query, model, resolved, started, logger)
+	default:
+		return d.queryCostAndUsage(ctx, query, model, resolved, started, logger)
+	}
+}
+
+func (d *Datasource) queryCostAndUsage(
+	ctx context.Context,
+	query backend.DataQuery,
+	model models.Query,
+	resolved models.ResolvedDateRange,
+	started time.Time,
+	logger log.Logger,
+) backend.DataResponse {
 	if resolved.Empty {
 		resultFrames, convertErr := frames.Convert(model, &awscostexplorer.GetCostAndUsageOutput{})
 		if convertErr != nil {
@@ -234,6 +252,229 @@ func (d *Datasource) query(ctx context.Context, query backend.DataQuery) backend
 	return backend.DataResponse{
 		Status: backend.StatusOK,
 		Frames: resultFrames,
+	}
+}
+
+func (d *Datasource) queryReservationUtilization(
+	ctx context.Context,
+	query backend.DataQuery,
+	model models.Query,
+	resolved models.ResolvedDateRange,
+	started time.Time,
+	logger log.Logger,
+) backend.DataResponse {
+	if resolved.Empty {
+		resultFrames, convertErr := frames.ConvertReservationUtilization(model, &awscostexplorer.GetReservationUtilizationOutput{})
+		if convertErr != nil {
+			return backend.ErrDataResponse(
+				backend.StatusInternal,
+				fmt.Sprintf("create empty AWS Reservation Utilization data frames: %v", convertErr),
+			)
+		}
+		for _, frame := range resultFrames {
+			frame.RefID = query.RefID
+			if frame.Meta == nil {
+				frame.Meta = &data.FrameMeta{}
+			}
+			frame.Meta.Notices = append(frame.Meta.Notices, data.Notice{
+				Severity: data.NoticeSeverityInfo,
+				Text:     models.NoCompletedPeriodsNotice,
+			})
+		}
+
+		completedAt := d.now()
+		metadata := NewQueryExecutionMetadata(
+			&costexplorer.Execution{
+				CacheResult: cache.ResultBypass,
+				CacheTTL:    time.Duration(d.settings.CacheTTLSeconds) * time.Second,
+			},
+			completedAt,
+			completedAt.Sub(started),
+			false,
+		)
+		AttachQueryExecutionMetadata(resultFrames, metadata)
+		fields := append(metadata.LogFields(), "frame_count", len(resultFrames))
+		logger.Info("Reservation Utilization query completed without an AWS request", fields...)
+		return backend.DataResponse{Status: backend.StatusOK, Frames: resultFrames}
+	}
+
+	awsContext, cancel := context.WithTimeout(ctx, awsRequestTimeout)
+	defer cancel()
+
+	execution, err := d.service.ReservationUtilization(awsContext, d.settings, model, resolved.DateRange)
+	if err != nil {
+		failedAt := d.now()
+		metadata := NewQueryExecutionMetadata(
+			reservationUtilizationMetadataExecution(execution),
+			failedAt,
+			failedAt.Sub(started),
+			resolved.IncludesIncompletePeriod,
+		)
+		fields := append(metadata.LogFields(), "error_category", "aws_reservation_utilization_request_failed")
+		logger.Error("Reservation Utilization query failed", fields...)
+		status := backend.StatusBadGateway
+		if awsContext.Err() == context.DeadlineExceeded {
+			status = backend.StatusTimeout
+		}
+		errorResponse := backend.ErrDataResponse(status, err.Error())
+		errorFrames, frameErr := frames.ConvertReservationUtilization(model, &awscostexplorer.GetReservationUtilizationOutput{})
+		if frameErr == nil {
+			for _, frame := range errorFrames {
+				frame.RefID = query.RefID
+			}
+			AttachQueryExecutionMetadata(errorFrames, metadata)
+			errorResponse.Frames = errorFrames
+		}
+		return errorResponse
+	}
+
+	resultFrames, err := frames.ConvertReservationUtilization(model, execution.Output)
+	if err != nil {
+		logger.Error("data frame conversion failed", "error", err)
+		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("convert AWS response to data frames: %v", err))
+	}
+	for _, frame := range resultFrames {
+		frame.RefID = query.RefID
+	}
+
+	completedAt := d.now()
+	metadata := NewQueryExecutionMetadata(
+		reservationUtilizationMetadataExecution(execution),
+		completedAt,
+		completedAt.Sub(started),
+		resolved.IncludesIncompletePeriod,
+	)
+	AttachQueryExecutionMetadata(resultFrames, metadata)
+
+	fields := append(metadata.LogFields(), "frame_count", len(resultFrames))
+	logger.Info("Reservation Utilization query completed", fields...)
+
+	return backend.DataResponse{Status: backend.StatusOK, Frames: resultFrames}
+}
+
+func (d *Datasource) querySavingsPlansUtilization(
+	ctx context.Context,
+	query backend.DataQuery,
+	model models.Query,
+	resolved models.ResolvedDateRange,
+	started time.Time,
+	logger log.Logger,
+) backend.DataResponse {
+	if resolved.Empty {
+		resultFrames, convertErr := frames.ConvertSavingsPlansUtilization(model, &awscostexplorer.GetSavingsPlansUtilizationOutput{})
+		if convertErr != nil {
+			return backend.ErrDataResponse(
+				backend.StatusInternal,
+				fmt.Sprintf("create empty AWS Savings Plans Utilization data frames: %v", convertErr),
+			)
+		}
+		for _, frame := range resultFrames {
+			frame.RefID = query.RefID
+			if frame.Meta == nil {
+				frame.Meta = &data.FrameMeta{}
+			}
+			frame.Meta.Notices = append(frame.Meta.Notices, data.Notice{
+				Severity: data.NoticeSeverityInfo,
+				Text:     models.NoCompletedPeriodsNotice,
+			})
+		}
+
+		completedAt := d.now()
+		metadata := NewQueryExecutionMetadata(
+			&costexplorer.Execution{
+				CacheResult: cache.ResultBypass,
+				CacheTTL:    time.Duration(d.settings.CacheTTLSeconds) * time.Second,
+			},
+			completedAt,
+			completedAt.Sub(started),
+			false,
+		)
+		AttachQueryExecutionMetadata(resultFrames, metadata)
+		fields := append(metadata.LogFields(), "frame_count", len(resultFrames))
+		logger.Info("Savings Plans Utilization query completed without an AWS request", fields...)
+		return backend.DataResponse{Status: backend.StatusOK, Frames: resultFrames}
+	}
+
+	awsContext, cancel := context.WithTimeout(ctx, awsRequestTimeout)
+	defer cancel()
+
+	execution, err := d.service.SavingsPlansUtilization(awsContext, d.settings, model, resolved.DateRange)
+	if err != nil {
+		failedAt := d.now()
+		metadata := NewQueryExecutionMetadata(
+			savingsPlansUtilizationMetadataExecution(execution),
+			failedAt,
+			failedAt.Sub(started),
+			resolved.IncludesIncompletePeriod,
+		)
+		fields := append(metadata.LogFields(), "error_category", "aws_savings_plans_utilization_request_failed")
+		logger.Error("Savings Plans Utilization query failed", fields...)
+		status := backend.StatusBadGateway
+		if awsContext.Err() == context.DeadlineExceeded {
+			status = backend.StatusTimeout
+		}
+		errorResponse := backend.ErrDataResponse(status, err.Error())
+		errorFrames, frameErr := frames.ConvertSavingsPlansUtilization(model, &awscostexplorer.GetSavingsPlansUtilizationOutput{})
+		if frameErr == nil {
+			for _, frame := range errorFrames {
+				frame.RefID = query.RefID
+			}
+			AttachQueryExecutionMetadata(errorFrames, metadata)
+			errorResponse.Frames = errorFrames
+		}
+		return errorResponse
+	}
+
+	resultFrames, err := frames.ConvertSavingsPlansUtilization(model, execution.Output)
+	if err != nil {
+		logger.Error("data frame conversion failed", "error", err)
+		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("convert AWS response to data frames: %v", err))
+	}
+	for _, frame := range resultFrames {
+		frame.RefID = query.RefID
+	}
+
+	completedAt := d.now()
+	metadata := NewQueryExecutionMetadata(
+		savingsPlansUtilizationMetadataExecution(execution),
+		completedAt,
+		completedAt.Sub(started),
+		resolved.IncludesIncompletePeriod,
+	)
+	AttachQueryExecutionMetadata(resultFrames, metadata)
+
+	fields := append(metadata.LogFields(), "frame_count", len(resultFrames))
+	logger.Info("Savings Plans Utilization query completed", fields...)
+
+	return backend.DataResponse{Status: backend.StatusOK, Frames: resultFrames}
+}
+
+// reservationUtilizationMetadataExecution and
+// savingsPlansUtilizationMetadataExecution adapt the utilization-specific
+// Execution shapes to the costexplorer.Execution fields NewQueryExecutionMetadata
+// reads, without changing that function's existing signature or tests.
+func reservationUtilizationMetadataExecution(execution *costexplorer.ReservationUtilizationExecution) *costexplorer.Execution {
+	if execution == nil {
+		return nil
+	}
+	return &costexplorer.Execution{
+		CacheResult: execution.CacheResult,
+		CacheAge:    execution.CacheAge,
+		CacheTTL:    execution.CacheTTL,
+		Pages:       execution.Pages,
+		AWSDuration: execution.AWSDuration,
+	}
+}
+
+func savingsPlansUtilizationMetadataExecution(execution *costexplorer.SavingsPlansUtilizationExecution) *costexplorer.Execution {
+	if execution == nil {
+		return nil
+	}
+	return &costexplorer.Execution{
+		CacheResult: execution.CacheResult,
+		CacheAge:    execution.CacheAge,
+		CacheTTL:    execution.CacheTTL,
+		AWSDuration: execution.AWSDuration,
 	}
 }
 

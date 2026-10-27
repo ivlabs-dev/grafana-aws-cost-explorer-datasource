@@ -97,6 +97,102 @@ func TestQueryValidation(t *testing.T) {
 	}
 }
 
+func TestUtilizationQueryValidation(t *testing.T) {
+	base := func() Query {
+		q := Query{Version: QueryVersion, QueryType: QueryTypeReservationUtilization, Granularity: GranularityDaily, Format: FormatTimeSeries}
+		q.ApplyDefaults()
+		return q
+	}
+
+	tests := []struct {
+		name    string
+		query   Query
+		wantErr bool
+	}{
+		{
+			name:  "valid reservation utilization",
+			query: base(),
+		},
+		{
+			name: "valid savings plans utilization",
+			query: func() Query {
+				q := base()
+				q.QueryType = QueryTypeSavingsPlansUtilization
+				q.ApplyDefaults()
+				return q
+			}(),
+		},
+		{
+			name: "reservation utilization rejects tag filter",
+			query: func() Query {
+				q := base()
+				q.Filter = QueryFilter{TagKey: "Environment", TagValue: "prod"}
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "savings plans utilization rejects service filter",
+			query: func() Query {
+				q := base()
+				q.QueryType = QueryTypeSavingsPlansUtilization
+				q.ApplyDefaults()
+				q.Filter = QueryFilter{Service: "Amazon Elastic Compute Cloud - Compute"}
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "savings plans utilization rejects group by subscription",
+			query: func() Query {
+				q := base()
+				q.QueryType = QueryTypeSavingsPlansUtilization
+				q.ApplyDefaults()
+				q.GroupBySubscription = true
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "reservation utilization rejects an unknown utilization metric",
+			query: func() Query {
+				q := base()
+				q.UtilizationMetric = "NotARealMetric"
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "savings plans utilization rejects a reservation-only metric",
+			query: func() Query {
+				q := base()
+				q.QueryType = QueryTypeSavingsPlansUtilization
+				q.ApplyDefaults()
+				q.UtilizationMetric = "NetRISavings"
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "reservation utilization accepts grouping by subscription",
+			query: func() Query {
+				q := base()
+				q.GroupBySubscription = true
+				return q
+			}(),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.query.Validate()
+			if (err != nil) != test.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, test.wantErr)
+			}
+		})
+	}
+}
+
 func TestLegacyQueryJSONAppliesCompatibleDefaults(t *testing.T) {
 	var query Query
 	err := json.Unmarshal([]byte(`{
@@ -113,6 +209,9 @@ func TestLegacyQueryJSONAppliesCompatibleDefaults(t *testing.T) {
 
 	query.ApplyDefaults()
 
+	if query.QueryType != QueryTypeCostAndUsage {
+		t.Fatalf("queryType = %q, want %q for a query saved before this field existed", query.QueryType, QueryTypeCostAndUsage)
+	}
 	if query.IncludeIncompletePeriod != DefaultIncludeIncompletePeriod {
 		t.Fatalf("includeIncompletePeriod = %v, want %v", query.IncludeIncompletePeriod, DefaultIncludeIncompletePeriod)
 	}

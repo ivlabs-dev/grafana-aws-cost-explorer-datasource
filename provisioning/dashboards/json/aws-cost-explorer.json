@@ -761,6 +761,194 @@
       ],
       "title": "Monthly amortized cost",
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "aws-cost-explorer"
+      },
+      "description": "Most recent daily Reservation Utilization percentage for the selected range. Needs the optional ce:GetReservationUtilization IAM permission; without it this panel shows an error.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "decimals": 1,
+          "unit": "percent",
+          "noValue": "No reservation utilization data"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "id": 9,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "queryType": "reservationUtilization",
+          "granularity": "DAILY",
+          "format": "timeSeries",
+          "filter": {},
+          "groupBySubscription": false,
+          "utilizationMetric": "UtilizationPercentage",
+          "refId": "A",
+          "version": 1,
+          "alignMonthlyToCalendar": true,
+          "includeIncompletePeriod": false,
+          "rangeMode": "dashboard"
+        }
+      ],
+      "title": "Reservation utilization %",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "aws-cost-explorer"
+      },
+      "description": "Most recent daily Savings Plans Utilization percentage for the selected range. Needs the optional ce:GetSavingsPlansUtilization IAM permission; without it this panel shows an error.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "decimals": 1,
+          "unit": "percent",
+          "noValue": "No Savings Plans utilization data"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "id": 10,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "queryType": "savingsPlansUtilization",
+          "granularity": "DAILY",
+          "format": "timeSeries",
+          "filter": {},
+          "utilizationMetric": "UtilizationPercentage",
+          "refId": "A",
+          "version": 1,
+          "alignMonthlyToCalendar": true,
+          "includeIncompletePeriod": false,
+          "rangeMode": "dashboard"
+        }
+      ],
+      "title": "Savings Plans utilization %",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "aws-cost-explorer"
+      },
+      "description": "Daily Reservation Utilization detail: utilization %, net RI savings, On-Demand cost of RI hours used, total amortized fee, unused hours, and realized/unrealized savings. Enable 'Group by subscription ID' in the query editor to break this down per subscription instead.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 41
+      },
+      "id": 11,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "queryType": "reservationUtilization",
+          "granularity": "DAILY",
+          "format": "table",
+          "filter": {},
+          "groupBySubscription": false,
+          "refId": "A",
+          "version": 1,
+          "alignMonthlyToCalendar": true,
+          "includeIncompletePeriod": false,
+          "rangeMode": "dashboard"
+        }
+      ],
+      "title": "Reservation utilization detail",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "aws-cost-explorer"
+      },
+      "description": "Daily Savings Plans Utilization detail: utilization %, used/unused/total commitment, net savings, On-Demand cost equivalent, and total amortized commitment. This API never groups by dimension.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 41
+      },
+      "id": 12,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "queryType": "savingsPlansUtilization",
+          "granularity": "DAILY",
+          "format": "table",
+          "filter": {},
+          "refId": "A",
+          "version": 1,
+          "alignMonthlyToCalendar": true,
+          "includeIncompletePeriod": false,
+          "rangeMode": "dashboard"
+        }
+      ],
+      "title": "Savings Plans utilization detail",
+      "type": "table"
     }
   ],
   "refresh": "",
@@ -776,5 +964,5 @@
   "timezone": "browser",
   "title": "AWS Cost Explorer overview",
   "uid": "aws-cost-explorer-overview",
-  "version": 1
+  "version": 2
 }

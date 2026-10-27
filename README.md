@@ -44,8 +44,12 @@ Current features include:
 - bounded in-memory TTL/LRU caching and concurrent request deduplication
 - Query Inspector metadata and structured logs for freshness, cache, AWS
   duration, pagination, incomplete periods, and estimated results
-- a provisioned data source and eight-panel example dashboard, including
-  three summary KPIs and a top-10 services breakdown
+- Reservation and Savings Plans utilization as separate query types
+  (`GetReservationUtilization`/`GetSavingsPlansUtilization`), with
+  table and time-series presentation of a curated metric set
+- a provisioned data source and twelve-panel example dashboard, including
+  three summary KPIs, a top-10 services breakdown, and Reservation/Savings
+  Plans utilization panels
 - the same dashboard bundled with the plugin itself, importable for any
   configured data source instance from its **Dashboards** tab
 - mocked Go tests and Jest frontend tests that require no AWS account
@@ -180,7 +184,13 @@ The target AWS identity needs only these least-privilege, read-only actions:
     {
       "Sid": "ReadCostExplorer",
       "Effect": "Allow",
-      "Action": ["ce:GetCostAndUsage", "ce:GetDimensionValues", "ce:GetTags"],
+      "Action": [
+        "ce:GetCostAndUsage",
+        "ce:GetDimensionValues",
+        "ce:GetTags",
+        "ce:GetReservationUtilization",
+        "ce:GetSavingsPlansUtilization"
+      ],
       "Resource": "*"
     }
   ]
@@ -193,10 +203,16 @@ AssumeRole source identities additionally require `sts:AssumeRole` for the
 specific target role; that permission belongs in the source policy, not this
 target role policy.
 
-`ce:GetDimensionValues` and `ce:GetTags` are optional and additive: they power
-autocomplete suggestions in the query editor's filter fields. Without them,
-those fields still accept free-text values exactly as before — only
-`ce:GetCostAndUsage` is strictly required.
+Everything except `ce:GetCostAndUsage` is optional and additive:
+
+- `ce:GetDimensionValues` and `ce:GetTags` power autocomplete suggestions in
+  the query editor's filter fields. Without them, those fields still accept
+  free-text values exactly as before.
+- `ce:GetReservationUtilization` and `ce:GetSavingsPlansUtilization` are only
+  needed if you use the **Reservation utilization** or **Savings Plans
+  utilization** query types. Without them, those query types return an AWS
+  access-denied error instead of data; `ce:GetCostAndUsage` queries are
+  unaffected.
 
 The same policy is available at
 [`docs/iam-policy.json`](docs/iam-policy.json).
@@ -251,6 +267,36 @@ Grafana field labels. Top N ranking uses each group's decimal-safe total across
 the complete returned range. When enabled, `Other` sums the excluded groups
 separately for every period and never combines incompatible units.
 
+### Reservation and Savings Plans utilization
+
+Choose **Reservation utilization** or **Savings Plans utilization** as the
+**Query type** to query AWS's `GetReservationUtilization` and
+`GetSavingsPlansUtilization` APIs instead of `GetCostAndUsage`. These are
+separate AWS APIs with their own request/response shapes, so the editor
+reflects their real constraints rather than pretending a single unified
+model:
+
+- Both support **Linked account** and **Region** filters. **AWS service** is
+  additionally available for Reservation utilization only — Savings Plans
+  utilization doesn't support a service dimension. Neither API supports cost
+  allocation tag filtering.
+- Reservation utilization can optionally **Group by subscription ID** (the
+  only grouping AWS allows for this API). Savings Plans utilization never
+  groups by any dimension.
+- **Table** format shows a curated set of AWS's numeric fields as columns:
+  utilization %, net RI savings, On-Demand cost of RI hours used, total
+  amortized fee, unused hours, and realized/unrealized savings for
+  Reservations; utilization %, used/unused/total commitment, net savings,
+  On-Demand cost equivalent, and total amortized commitment for Savings
+  Plans. AWS returns more fields than this; the list is an intentional,
+  curated subset rather than everything AWS exposes.
+- **Time series** format plots one metric at a time, chosen via the
+  **Utilization metric** selector, from that same curated set.
+
+Reservation/Savings Plans **coverage** (how much of your usage was covered by
+a reservation or Savings Plan, as opposed to how much of what you bought you
+used) is not yet supported — see [Roadmap](#roadmap).
+
 ### Example dashboard KPIs
 
 The provisioned dashboard places three stat panels above the detailed charts:
@@ -264,7 +310,12 @@ The provisioned dashboard places three stat panels above the detailed charts:
 
 Below those, a **Top 10 cost services** bar chart ranks services over the
 selected range, and the AWS service time series splits tax onto its own
-right-hand axis so it does not distort the per-service stacking.
+right-hand axis so it does not distort the per-service stacking. Two more
+stat panels show the most recent **Reservation utilization %** and **Savings
+Plans utilization %**, each followed by a detail table of the curated metrics
+described above; these show an error rather than data if the optional
+`ce:GetReservationUtilization`/`ce:GetSavingsPlansUtilization` permissions
+aren't granted, or no data if the account has no reservations/Savings Plans.
 
 ### Importing the bundled example dashboard
 
@@ -388,7 +439,10 @@ by the plugin.
 
 Grant `ce:GetCostAndUsage` to the final identity. In AssumeRole mode, also
 verify the source `sts:AssumeRole` policy, target trust policy, external ID, and
-role ARN.
+role ARN. If only the **Reservation utilization** or **Savings Plans
+utilization** query type fails, grant the matching optional
+`ce:GetReservationUtilization`/`ce:GetSavingsPlansUtilization` action too —
+see [IAM policy](#iam-policy).
 
 **The query is empty**
 
@@ -440,7 +494,9 @@ restarted after metadata changes.
 
 - Prefer workload or IAM roles and short-lived credentials.
 - Give the final identity only `ce:GetCostAndUsage`, plus the optional
-  `ce:GetDimensionValues`/`ce:GetTags` if you want filter autocomplete.
+  `ce:GetDimensionValues`/`ce:GetTags` for filter autocomplete and
+  `ce:GetReservationUtilization`/`ce:GetSavingsPlansUtilization` for the
+  utilization query types, if you use them.
 - Restrict `sts:AssumeRole` to the intended target role.
 - Treat Grafana administrators and the Grafana host as privileged because the
   backend receives decrypted secure settings.
@@ -460,15 +516,21 @@ values.
 - no cost category grouping or UI
 - highest-cost service uses the service name as its primary stat; portable
   Grafana stat configuration does not also render the cost as secondary text
-- no CUR, Athena, forecasts, budgets, anomalies, commitments, or Organizations
-  discovery
+- no Reservation/Savings Plans coverage (how much usage was covered, as
+  opposed to how much of what you bought you used); only utilization is
+  supported today
+- Reservation/Savings Plans utilization expose a curated metric subset, not
+  every field AWS returns
+- no CUR, Athena, forecasts, budgets, anomalies, purchase recommendations, or
+  Organizations discovery
 - no hosted service, reports, notifications, billing, subscriptions, or user
   analytics
 
 ## Roadmap
 
-Near-term priorities are stronger dashboard and plugin-e2e coverage. Later
-open-source extensions may add cost forecasting, cost categories, and
+Near-term priorities are Reservation/Savings Plans coverage (the natural
+follow-up to utilization) and stronger dashboard and plugin-e2e coverage.
+Later open-source extensions may add cost forecasting, cost categories, and
 optional distributed caching. CUR/Athena and any managed FinOps service will
 be designed as separate capabilities so they do not complicate the direct
 Cost Explorer experience.

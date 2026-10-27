@@ -19,6 +19,28 @@ export type ResultFormat = 'timeSeries' | 'table';
 // service KPI. The visual query editor intentionally offers only 0/5/10/20.
 export type TopN = 0 | 1 | 5 | 10 | 20;
 export type QueryRangeMode = 'dashboard' | 'monthToDate' | 'previousEquivalentPeriod';
+export type QueryType = 'costAndUsage' | 'reservationUtilization' | 'savingsPlansUtilization';
+
+// Curated subsets of AWS's Reservation/Savings Plans utilization fields this
+// plugin exposes as a selectable time-series metric or table column. Keep in
+// sync with pkg/models/query.go's ReservationUtilizationMetrics /
+// SavingsPlansUtilizationMetrics.
+export type ReservationUtilizationMetric =
+  | 'UtilizationPercentage'
+  | 'NetRISavings'
+  | 'OnDemandCostOfRIHoursUsed'
+  | 'TotalAmortizedFee'
+  | 'UnusedHours'
+  | 'RealizedSavings'
+  | 'UnrealizedSavings';
+export type SavingsPlansUtilizationMetric =
+  | 'UtilizationPercentage'
+  | 'UsedCommitment'
+  | 'UnusedCommitment'
+  | 'TotalCommitment'
+  | 'NetSavings'
+  | 'OnDemandCostEquivalent'
+  | 'TotalAmortizedCommitment';
 
 export interface CostFilter {
   service?: string;
@@ -30,6 +52,7 @@ export interface CostFilter {
 
 export interface CostQuery extends DataQuery {
   version: 1;
+  queryType: QueryType;
   metric: CostMetric;
   granularity: Granularity;
   groupBy: GroupBy[];
@@ -40,11 +63,14 @@ export interface CostQuery extends DataQuery {
   includeOther: boolean;
   alignMonthlyToCalendar: boolean;
   rangeMode: QueryRangeMode;
+  groupBySubscription: boolean;
+  utilizationMetric: ReservationUtilizationMetric | SavingsPlansUtilizationMetric;
 }
 
 export const DEFAULT_QUERY: CostQuery = {
   refId: 'A',
   version: 1,
+  queryType: 'costAndUsage',
   metric: 'UnblendedCost',
   granularity: 'DAILY',
   groupBy: [],
@@ -55,6 +81,8 @@ export const DEFAULT_QUERY: CostQuery = {
   includeOther: true,
   alignMonthlyToCalendar: true,
   rangeMode: 'dashboard',
+  groupBySubscription: false,
+  utilizationMetric: 'UtilizationPercentage',
 };
 
 export function normalizeQuery(query: CostQuery): CostQuery {
