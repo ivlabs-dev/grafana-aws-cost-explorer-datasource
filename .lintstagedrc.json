@@ -1,0 +1,8 @@
+{
+  "src/**/*.{ts,tsx}": ["eslint --fix --cache", "prettier --write"],
+  "src/**/*.{json,md}": ["prettier --write"],
+  "tests/**/*.ts": ["prettier --write"],
+  "docs/**/*.{md,json}": ["prettier --write"],
+  "provisioning/**/*.{yml,json}": ["prettier --write"],
+  "README.md": ["prettier --write"]
+}
