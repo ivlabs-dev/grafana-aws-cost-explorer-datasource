@@ -69,6 +69,12 @@ func (s *Service) SavingsPlansUtilization(
 		started := time.Now()
 		output, loadErr := s.client.GetSavingsPlansUtilization(loadContext, input)
 		if loadErr != nil {
+			if isDataUnavailable(loadErr) {
+				return &cachedSavingsPlansUtilizationResponse{
+					Output:      &awscostexplorer.GetSavingsPlansUtilizationOutput{},
+					AWSDuration: time.Since(started),
+				}, nil
+			}
 			return nil, loadErr
 		}
 		if output == nil {

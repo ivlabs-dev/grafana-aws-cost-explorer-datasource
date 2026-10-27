@@ -150,6 +150,9 @@ func (s *Service) fetchAllReservationUtilization(
 
 		output, err := s.client.GetReservationUtilization(ctx, &input)
 		if err != nil {
+			if isDataUnavailable(err) {
+				return combined, page, nil
+			}
 			return nil, page, err
 		}
 		if output == nil {

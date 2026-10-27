@@ -591,6 +591,51 @@ func TestReservationUtilizationGroupsBySubscription(t *testing.T) {
 	}
 }
 
+func TestReservationUtilizationTreatsDataUnavailableAsEmptySuccess(t *testing.T) {
+	// AWS returns DataUnavailableException for an account/period with no
+	// reservation-eligible usage at all (observed live against a real
+	// account with no Reserved Instances) -- this is "nothing to report",
+	// not a failure, so it should behave like a genuinely empty response
+	// rather than surfacing a scary error on the dashboard panel.
+	client := &mockClient{
+		reservationUtilizationFn: func(*awscostexplorer.GetReservationUtilizationInput) (*awscostexplorer.GetReservationUtilizationOutput, error) {
+			return nil, &smithy.GenericAPIError{Code: "DataUnavailableException", Message: "The requested data is unavailable."}
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	execution, err := service.ReservationUtilization(
+		context.Background(), validSettings(), reservationUtilizationQuery(), models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err != nil {
+		t.Fatalf("expected a successful empty result, got error: %v", err)
+	}
+	if execution.Output == nil || len(execution.Output.UtilizationsByTime) != 0 {
+		t.Fatalf("expected an empty output, got %+v", execution.Output)
+	}
+}
+
+func TestSavingsPlansUtilizationTreatsDataUnavailableAsEmptySuccess(t *testing.T) {
+	client := &mockClient{
+		savingsPlansUtilizationFn: func(*awscostexplorer.GetSavingsPlansUtilizationInput) (*awscostexplorer.GetSavingsPlansUtilizationOutput, error) {
+			return nil, &smithy.GenericAPIError{Code: "DataUnavailableException", Message: "The requested data is unavailable."}
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	execution, err := service.SavingsPlansUtilization(
+		context.Background(), validSettings(), savingsPlansUtilizationQuery(), models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err != nil {
+		t.Fatalf("expected a successful empty result, got error: %v", err)
+	}
+	if execution.Output == nil || len(execution.Output.SavingsPlansUtilizationsByTime) != 0 {
+		t.Fatalf("expected an empty output, got %+v", execution.Output)
+	}
+}
+
 func TestReservationUtilizationClassifiesAWSError(t *testing.T) {
 	client := &mockClient{
 		reservationUtilizationFn: func(*awscostexplorer.GetReservationUtilizationInput) (*awscostexplorer.GetReservationUtilizationOutput, error) {
