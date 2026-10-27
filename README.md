@@ -9,7 +9,7 @@ self-hosted Grafana. It turns dashboard time ranges and visual query controls
 into signed AWS Cost Explorer `GetCostAndUsage` requests, then returns native
 Grafana time-series or table data frames.
 
-The temporary plugin ID is `ivlabsdev-awscostexplorer-datasource`. The source
+The plugin ID is `ivlabsdev-awscostexplorer-datasource`. The source
 repository lives under the GitHub organization `ivlabs-dev`; Grafana's official
 scaffolder normalizes that organization name to the ID prefix `ivlabsdev`.
 
@@ -457,16 +457,14 @@ values.
   discovery
 - no hosted service, reports, notifications, billing, subscriptions, or user
   analytics
-- no signed catalog release yet
 
 ## Roadmap
 
-Near-term priorities are AWS dimension-value autocomplete, stronger dashboard
-and plugin-e2e coverage, and catalog signing/release automation. Later
-open-source extensions may add forecasts, cost categories, and optional
-distributed caching. CUR/Athena and any managed FinOps service will be designed
-as separate capabilities so they do not complicate the direct Cost Explorer
-experience.
+Near-term priorities are AWS dimension-value autocomplete and stronger
+dashboard and plugin-e2e coverage. Later open-source extensions may add
+forecasts, cost categories, and optional distributed caching. CUR/Athena and
+any managed FinOps service will be designed as separate capabilities so they
+do not complicate the direct Cost Explorer experience.
 
 ## Contributing
 
