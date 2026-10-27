@@ -51,9 +51,7 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": [
-            "sum"
-          ],
+          "calcs": ["sum"],
           "fields": "",
           "values": false
         },
@@ -110,9 +108,7 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": [
-            "sum"
-          ],
+          "calcs": ["sum"],
           "fields": "",
           "values": false
         },
@@ -181,9 +177,7 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -496,9 +490,7 @@
       "id": 2,
       "options": {
         "legend": {
-          "calcs": [
-            "sum"
-          ],
+          "calcs": ["sum"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true,
@@ -516,9 +508,7 @@
           "filter": {},
           "format": "timeSeries",
           "granularity": "DAILY",
-          "groupBy": [
-            "SERVICE"
-          ],
+          "groupBy": ["SERVICE"],
           "includeIncompletePeriod": false,
           "includeOther": false,
           "metric": "UnblendedCost",
@@ -647,9 +637,7 @@
           "filter": {},
           "format": "timeSeries",
           "granularity": "DAILY",
-          "groupBy": [
-            "SERVICE"
-          ],
+          "groupBy": ["SERVICE"],
           "includeIncompletePeriod": false,
           "includeOther": false,
           "metric": "UnblendedCost",
@@ -666,9 +654,7 @@
           "options": {
             "includeTimeField": false,
             "mode": "seriesToRows",
-            "reducers": [
-              "sum"
-            ]
+            "reducers": ["sum"]
           }
         },
         {
@@ -723,9 +709,7 @@
           "filter": {},
           "format": "table",
           "granularity": "DAILY",
-          "groupBy": [
-            "LINKED_ACCOUNT"
-          ],
+          "groupBy": ["LINKED_ACCOUNT"],
           "includeIncompletePeriod": false,
           "includeOther": true,
           "metric": "UnblendedCost",
@@ -781,11 +765,7 @@
   ],
   "refresh": "",
   "schemaVersion": 42,
-  "tags": [
-    "aws",
-    "cost-explorer",
-    "finops"
-  ],
+  "tags": ["aws", "cost-explorer", "finops"],
   "templating": {
     "list": []
   },
