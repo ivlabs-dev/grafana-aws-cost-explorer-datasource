@@ -44,5 +44,12 @@
   "dependencies": {
     "grafanaDependency": ">=12.3.0",
     "plugins": []
-  }
+  },
+  "includes": [
+    {
+      "type": "dashboard",
+      "name": "AWS Cost Explorer overview",
+      "path": "dashboards/overview.json"
+    }
+  ]
 }
