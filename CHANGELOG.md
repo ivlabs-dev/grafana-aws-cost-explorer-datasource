@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Bundle the "AWS Cost Explorer overview" dashboard with the plugin itself,
+  importable from the data source's **Dashboards** tab. It replaces the
+  highest-cost-service stat with a top-10 services bar chart and splits tax
+  onto its own axis in the service breakdown.
+- Update the local development provisioning dashboard to match.
+
 ## 1.0.8 (2026-09-19)
 
 - First signed release. Enable plugin signing in the release workflow using a

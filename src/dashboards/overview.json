@@ -1,0 +1,827 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_AWS_COST_EXPLORER",
+      "label": "AWS Cost Explorer",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "ivlabsdev-awscostexplorer-datasource",
+      "pluginName": "AWS Cost Explorer"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "ivlabsdev-awscostexplorer-datasource",
+      "name": "AWS Cost Explorer",
+      "version": "1.0.8"
+    },
+    {
+      "type": "panel",
+      "id": "barchart",
+      "name": "Bar chart",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    },
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "12.3.0"
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "${DS_AWS_COST_EXPLORER}"
+      },
+      "description": "Sum of UnblendedCost for completed UTC billing periods in the selected dashboard range. The current incomplete day is excluded by default.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "decimals": 2,
+          "noValue": "No completed periods"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {},
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": [],
+          "includeIncompletePeriod": false,
+          "includeOther": true,
+          "metric": "UnblendedCost",
+          "rangeMode": "dashboard",
+          "refId": "A",
+          "topN": 0,
+          "version": 1
+        }
+      ],
+      "title": "Cost in selected period",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "${DS_AWS_COST_EXPLORER}"
+      },
+      "description": "Month-to-date UnblendedCost from the first day of the current UTC month. This intentionally includes the incomplete current period; AWS Cost Explorer data can have a reporting delay.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "decimals": 2,
+          "noValue": "No month-to-date data"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {},
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": [],
+          "includeIncompletePeriod": true,
+          "includeOther": true,
+          "metric": "UnblendedCost",
+          "rangeMode": "monthToDate",
+          "refId": "A",
+          "topN": 0,
+          "version": 1
+        }
+      ],
+      "title": "Month-to-date cost",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "${DS_AWS_COST_EXPLORER}"
+      },
+      "description": "Percentage change in completed-period UnblendedCost versus the immediately preceding equivalent range. Positive means higher spend and negative means lower spend; neither direction is classified as good or bad. A zero or missing previous total is shown as no comparison.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "decimals": 1,
+          "mappings": [
+            {
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "No comparison"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "noValue": "No comparison",
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {},
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": [],
+          "hide": true,
+          "includeIncompletePeriod": false,
+          "includeOther": true,
+          "metric": "UnblendedCost",
+          "rangeMode": "dashboard",
+          "refId": "A",
+          "topN": 0,
+          "version": 1
+        },
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {},
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": [],
+          "hide": true,
+          "includeIncompletePeriod": false,
+          "includeOther": true,
+          "metric": "UnblendedCost",
+          "rangeMode": "previousEquivalentPeriod",
+          "refId": "B",
+          "topN": 0,
+          "version": 1
+        },
+        {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$A",
+          "hide": true,
+          "reducer": "sum",
+          "refId": "C",
+          "settings": {
+            "mode": "dropNN"
+          },
+          "type": "reduce"
+        },
+        {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$B",
+          "hide": true,
+          "reducer": "sum",
+          "refId": "D",
+          "settings": {
+            "mode": "dropNN"
+          },
+          "type": "reduce"
+        },
+        {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "($D != 0) * (($C - $D) / $D * 100)",
+          "hide": false,
+          "refId": "E",
+          "type": "math"
+        }
+      ],
+      "title": "Change vs previous period",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "${DS_AWS_COST_EXPLORER}"
+      },
+      "description": "Daily UnblendedCost for completed UTC billing periods. AWS period timestamps represent the beginning of each billing day.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {},
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": [],
+          "includeIncompletePeriod": false,
+          "includeOther": true,
+          "metric": "UnblendedCost",
+          "rangeMode": "dashboard",
+          "refId": "A",
+          "topN": 0,
+          "version": 1
+        }
+      ],
+      "title": "Total AWS cost over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "${DS_AWS_COST_EXPLORER}"
+      },
+      "description": "Daily UnblendedCost for the ten highest-cost AWS services in the selected range. Tax is removed from that ranking and drawn on the right axis. Services outside the top ten are omitted so tax is not included twice.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^Tax$"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": true,
+                  "tooltip": true,
+                  "viz": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Tax"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.stacking",
+                "value": {
+                  "group": "B",
+                  "mode": "none"
+                }
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "auto"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": ["sum"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "Name",
+          "sortDesc": false
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {},
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": ["SERVICE"],
+          "includeIncompletePeriod": false,
+          "includeOther": false,
+          "metric": "UnblendedCost",
+          "rangeMode": "dashboard",
+          "refId": "A",
+          "topN": 0,
+          "version": 1
+        },
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {
+            "service": "Tax"
+          },
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": [],
+          "includeIncompletePeriod": false,
+          "includeOther": false,
+          "metric": "UnblendedCost",
+          "rangeMode": "dashboard",
+          "refId": "B",
+          "topN": 0,
+          "version": 1
+        }
+      ],
+      "title": "Cost by AWS service",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "${DS_AWS_COST_EXPLORER}"
+      },
+      "description": "Ten AWS services with the highest total UnblendedCost across completed billing periods in the selected range. Bar length is proportional to that total, starting at $0.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cost"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 8,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.8,
+        "colorByField": "Service",
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "horizontal",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Service",
+        "xTickLabelMaxLength": 40,
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "targets": [
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {},
+          "format": "timeSeries",
+          "granularity": "DAILY",
+          "groupBy": ["SERVICE"],
+          "includeIncompletePeriod": false,
+          "includeOther": false,
+          "metric": "UnblendedCost",
+          "rangeMode": "dashboard",
+          "refId": "A",
+          "topN": 10,
+          "version": 1
+        }
+      ],
+      "title": "Top 10 cost services",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "mode": "seriesToRows",
+            "reducers": ["sum"]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Field": "Service",
+              "Total": "Cost"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "desc": true,
+                "field": "Cost"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "${DS_AWS_COST_EXPLORER}"
+      },
+      "description": "Daily UnblendedCost by linked account for completed UTC billing periods. Account identifiers come from AWS Cost Explorer; no account is hard-coded.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "id": 3,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {},
+          "format": "table",
+          "granularity": "DAILY",
+          "groupBy": ["LINKED_ACCOUNT"],
+          "includeIncompletePeriod": false,
+          "includeOther": true,
+          "metric": "UnblendedCost",
+          "rangeMode": "dashboard",
+          "refId": "A",
+          "topN": 0,
+          "version": 1
+        }
+      ],
+      "title": "Cost by linked account",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "${DS_AWS_COST_EXPLORER}"
+      },
+      "description": "AmortizedCost aligned to complete UTC calendar months. The current incomplete month is excluded by default.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "alignMonthlyToCalendar": true,
+          "filter": {},
+          "format": "table",
+          "granularity": "MONTHLY",
+          "groupBy": [],
+          "includeIncompletePeriod": false,
+          "includeOther": true,
+          "metric": "AmortizedCost",
+          "rangeMode": "dashboard",
+          "refId": "A",
+          "topN": 0,
+          "version": 1
+        }
+      ],
+      "title": "Monthly amortized cost",
+      "type": "table"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 42,
+  "tags": ["aws", "cost-explorer", "finops"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "AWS Cost Explorer overview",
+  "version": 1
+}

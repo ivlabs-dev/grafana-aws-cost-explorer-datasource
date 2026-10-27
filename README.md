@@ -42,8 +42,10 @@ The current MVP vertical slice includes:
 - bounded in-memory TTL/LRU caching and concurrent request deduplication
 - Query Inspector metadata and structured logs for freshness, cache, AWS
   duration, pagination, incomplete periods, and estimated results
-- a provisioned data source and eight-panel example dashboard, including four
-  summary KPIs
+- a provisioned data source and eight-panel example dashboard, including
+  three summary KPIs and a top-10 services breakdown
+- the same dashboard bundled with the plugin itself, importable for any
+  configured data source instance from its **Dashboards** tab
 - mocked Go tests and Jest frontend tests that require no AWS account
 
 ## Screenshots
@@ -244,7 +246,7 @@ separately for every period and never combines incompatible units.
 
 ### Example dashboard KPIs
 
-The provisioned dashboard places four stat panels above the detailed charts:
+The provisioned dashboard places three stat panels above the detailed charts:
 
 - **Cost in selected period** sums ungrouped `UnblendedCost`.
 - **Month-to-date cost** intentionally includes the incomplete current period
@@ -252,8 +254,18 @@ The provisioned dashboard places four stat panels above the detailed charts:
 - **Change vs previous period** compares the selected range with the immediately
   preceding equivalent-duration range. Positive and negative changes are
   presented neutrally; a zero previous total returns no percentage.
-- **Highest-cost service** ranks services over the selected range and displays
-  the leading service name without a `SERVICE=` prefix.
+
+Below those, a **Top 10 cost services** bar chart ranks services over the
+selected range, and the AWS service time series splits tax onto its own
+right-hand axis so it does not distort the per-service stacking.
+
+### Importing the bundled example dashboard
+
+Every install of this plugin ships the same dashboard shown above as an
+importable template. From **Connections > Data sources > AWS Cost
+Explorer**, open the **Dashboards** tab and click **Import** next to "AWS
+Cost Explorer overview" to add it to any Grafana instance, pointed at that
+data source.
 
 ## Caching behavior
 
@@ -342,6 +354,7 @@ pkg/frames          Grafana data-frame conversion
 pkg/models          settings, secrets, query model, and validation
 pkg/plugin          Grafana lifecycle, QueryData, CheckHealth, and logs
 src/components      React configuration and query editors
+src/dashboards      example dashboard bundled with the plugin itself
 provisioning        local data source and example dashboard
 docs                implementation plan, architecture, and IAM policy
 tests               opt-in/local Playwright smoke tests
