@@ -59,6 +59,25 @@ func TestConvertReservationUtilizationTable(t *testing.T) {
 	}
 }
 
+func TestUtilizationFieldUnitsAreExactNotSubstringMatched(t *testing.T) {
+	// OnDemandCostOfRIHoursUsed is a dollar amount despite its name
+	// containing "Hours" -- a substring-based unit heuristic previously
+	// misclassified it as an hours duration. UnusedHours is the only
+	// curated field that actually is a duration.
+	if got := utilizationFieldUnit("OnDemandCostOfRIHoursUsed"); got != "currencyUSD" {
+		t.Fatalf("unit = %q, want currencyUSD", got)
+	}
+	if got := utilizationFieldUnit("UnusedHours"); got != "h" {
+		t.Fatalf("unit = %q, want h", got)
+	}
+	if got := utilizationFieldUnit("UtilizationPercentage"); got != "percent" {
+		t.Fatalf("unit = %q, want percent", got)
+	}
+	if got := utilizationFieldUnit("NetRISavings"); got != "currencyUSD" {
+		t.Fatalf("unit = %q, want currencyUSD", got)
+	}
+}
+
 func TestConvertReservationUtilizationGroupedBySubscriptionTable(t *testing.T) {
 	query := reservationUtilizationQuery(models.FormatTable)
 	query.GroupBySubscription = true
