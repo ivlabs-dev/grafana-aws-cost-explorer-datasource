@@ -55,8 +55,8 @@ limitations, and contribution documentation is available in the
 
 ## Project status
 
-This is an MVP and has not yet had a signed Grafana catalog release.
-Screenshots are pending.
+Releases from 1.0.8 onward are signed, and the plugin is listed on the
+Grafana catalog.
 
 This project is not created, sponsored, or endorsed by Amazon Web Services or
 Grafana Labs. AWS and Amazon Web Services are trademarks of Amazon.com, Inc. or
