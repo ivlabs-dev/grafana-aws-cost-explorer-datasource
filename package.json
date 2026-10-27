@@ -13,7 +13,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,json,md}\" \"tests/**/*.ts\" \"docs/**/*.{md,json}\" \"provisioning/**/*.{yml,json}\" README.md",
     "e2e": "playwright test",
     "server": "docker compose up --build",
-    "sign": "sign-plugin"
+    "sign": "sign-plugin",
+    "prepare": "husky"
   },
   "author": "ivlabs-dev",
   "license": "Apache-2.0",
@@ -45,10 +46,12 @@
     "eslint-webpack-plugin": "^5.0.0",
     "fork-ts-checker-webpack-plugin": "^9.1.0",
     "glob": "^11.1.0",
+    "husky": "^9.1.7",
     "identity-obj-proxy": "^3.0.0",
     "imports-loader": "^5.0.0",
     "jest": "^30.5.2",
     "jest-environment-jsdom": "^30.5.2",
+    "lint-staged": "^17.6.0",
     "prettier": "^3.6.0",
     "replace-in-file-webpack-plugin": "^1.0.0",
     "sass": "^1.89.0",

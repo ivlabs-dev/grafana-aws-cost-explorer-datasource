@@ -344,6 +344,11 @@ AWS_INTEGRATION_TEST=1 npm run e2e
 
 Only opt in with disposable/role credentials and the least-privilege policy.
 
+`npm ci`/`npm install` installs a Husky `pre-commit` hook that runs
+`lint-staged`, which formats (and lints) only the files you staged using the
+same patterns as `npm run format:check`. This catches formatting issues
+locally instead of in CI.
+
 ## Repository layout
 
 ```text
