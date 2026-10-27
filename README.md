@@ -20,7 +20,7 @@ trademark of Grafana Labs.
 
 ## Status and features
 
-The current MVP vertical slice includes:
+Current features include:
 
 - explicit AWS credentials stored only in Grafana secure JSON data
 - AssumeRole with explicit source credentials, optional external ID, and role
@@ -28,7 +28,7 @@ The current MVP vertical slice includes:
 - `CheckHealth` credential resolution and a minimal Cost Explorer request
 - visual metric, daily/monthly granularity, grouping, filtering, and format
   controls
-- all requested MVP metrics and up to two grouping dimensions
+- all six supported Cost Explorer metrics and up to two grouping dimensions
 - AWS service, linked account, region, and cost allocation tag filters
 - paginated `GetCostAndUsage` execution
 - grouped and ungrouped Grafana time-series frames
@@ -169,7 +169,7 @@ not define an external ID as a password, but the plugin treats it as a secret.
 
 ## IAM policy
 
-The target AWS identity needs only this MVP action:
+The target AWS identity needs only this one least-privilege action:
 
 ```json
 {
