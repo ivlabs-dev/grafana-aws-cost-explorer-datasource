@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	awscostexplorer "github.com/aws/aws-sdk-go-v2/service/costexplorer"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/resource/httpadapter"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/awsclient"
 	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/cache"
@@ -22,11 +24,16 @@ const (
 	awsRequestTimeout                = 30 * time.Second
 	credentialHealthFailureMessage   = "AWS credentials could not be validated. Check the configured credentials."
 	costExplorerHealthFailureMessage = "AWS Cost Explorer request failed. Check the configured credentials, IAM permissions, and AWS region."
+	// lookupWindowDays bounds how far back dimension-value and tag lookups
+	// search. These values change rarely, so a fixed trailing window avoids
+	// depending on any particular panel's dashboard time range.
+	lookupWindowDays = 90
 )
 
 var (
 	_ backend.QueryDataHandler      = (*Datasource)(nil)
 	_ backend.CheckHealthHandler    = (*Datasource)(nil)
+	_ backend.CallResourceHandler   = (*Datasource)(nil)
 	_ instancemgmt.InstanceDisposer = (*Datasource)(nil)
 )
 
@@ -37,6 +44,7 @@ type Datasource struct {
 	initializationErr  error
 	logger             log.Logger
 	now                func() time.Time
+	resourceHandler    backend.CallResourceHandler
 }
 
 func NewDatasource(ctx context.Context, source backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
@@ -53,6 +61,7 @@ func newDatasource(
 		logger: logger.With("datasource_uid", source.UID),
 		now:    time.Now,
 	}
+	datasource.resourceHandler = datasource.buildResourceHandler()
 
 	settings, err := models.LoadPluginSettings(source)
 	if err != nil {
@@ -281,6 +290,131 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 			execution.CacheStatus(),
 		),
 	}, nil
+}
+
+func (d *Datasource) CallResource(
+	ctx context.Context,
+	req *backend.CallResourceRequest,
+	sender backend.CallResourceResponseSender,
+) error {
+	return d.resourceHandler.CallResource(ctx, req, sender)
+}
+
+func (d *Datasource) buildResourceHandler() backend.CallResourceHandler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /dimension-values", d.handleDimensionValues)
+	mux.HandleFunc("GET /tag-keys", d.handleTagKeys)
+	mux.HandleFunc("GET /tag-values", d.handleTagValues)
+	return httpadapter.New(mux)
+}
+
+func (d *Datasource) handleDimensionValues(w http.ResponseWriter, r *http.Request) {
+	if !d.ensureReady(w) {
+		return
+	}
+	dimension := r.URL.Query().Get("dimension")
+	if _, ok := costexplorer.FilterableDimensions[dimension]; !ok {
+		writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("dimension %q does not support value lookup", dimension))
+		return
+	}
+
+	dateRange, err := d.lookupDateRange()
+	if err != nil {
+		d.logger.FromContext(r.Context()).Error("resolve lookup date range failed", "error", err)
+		writeJSONError(w, http.StatusInternalServerError, "failed to resolve lookup date range")
+		return
+	}
+
+	values, err := d.service.DimensionValues(r.Context(), d.settings, dimension, r.URL.Query().Get("search"), dateRange)
+	if err != nil {
+		d.logger.FromContext(r.Context()).Warn("dimension value lookup failed", "dimension", dimension, "error", err)
+		writeJSONError(w, http.StatusBadGateway, "dimension value lookup failed")
+		return
+	}
+	writeJSONValues(w, values)
+}
+
+func (d *Datasource) handleTagKeys(w http.ResponseWriter, r *http.Request) {
+	if !d.ensureReady(w) {
+		return
+	}
+
+	dateRange, err := d.lookupDateRange()
+	if err != nil {
+		d.logger.FromContext(r.Context()).Error("resolve lookup date range failed", "error", err)
+		writeJSONError(w, http.StatusInternalServerError, "failed to resolve lookup date range")
+		return
+	}
+
+	values, err := d.service.TagKeys(r.Context(), d.settings, r.URL.Query().Get("search"), dateRange)
+	if err != nil {
+		d.logger.FromContext(r.Context()).Warn("tag key lookup failed", "error", err)
+		writeJSONError(w, http.StatusBadGateway, "tag key lookup failed")
+		return
+	}
+	writeJSONValues(w, values)
+}
+
+func (d *Datasource) handleTagValues(w http.ResponseWriter, r *http.Request) {
+	if !d.ensureReady(w) {
+		return
+	}
+	key := r.URL.Query().Get("key")
+	if key == "" {
+		writeJSONError(w, http.StatusBadRequest, "key is required")
+		return
+	}
+
+	dateRange, err := d.lookupDateRange()
+	if err != nil {
+		d.logger.FromContext(r.Context()).Error("resolve lookup date range failed", "error", err)
+		writeJSONError(w, http.StatusInternalServerError, "failed to resolve lookup date range")
+		return
+	}
+
+	values, err := d.service.TagValues(r.Context(), d.settings, key, r.URL.Query().Get("search"), dateRange)
+	if err != nil {
+		d.logger.FromContext(r.Context()).Warn("tag value lookup failed", "key", key, "error", err)
+		writeJSONError(w, http.StatusBadGateway, "tag value lookup failed")
+		return
+	}
+	writeJSONValues(w, values)
+}
+
+// ensureReady reports whether the data source initialized successfully,
+// writing a JSON error response and returning false otherwise.
+func (d *Datasource) ensureReady(w http.ResponseWriter) bool {
+	if d.initializationErr != nil {
+		writeJSONError(w, http.StatusInternalServerError, d.initializationErr.Error())
+		return false
+	}
+	if d.service == nil {
+		writeJSONError(w, http.StatusInternalServerError, "data source was not initialized")
+		return false
+	}
+	return true
+}
+
+// lookupDateRange returns the fixed trailing window used for dimension-value
+// and tag lookups, independent of any panel's dashboard time range.
+func (d *Datasource) lookupDateRange() (models.DateRange, error) {
+	to := d.now().UTC()
+	from := to.AddDate(0, 0, -lookupWindowDays)
+	return models.CostExplorerDateRange(from, to)
+}
+
+func writeJSONValues(w http.ResponseWriter, values []string) {
+	writeJSON(w, http.StatusOK, map[string][]string{"values": values})
+}
+
+func writeJSONError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func writeJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
 }
 
 func healthError(err error) *backend.CheckHealthResult {

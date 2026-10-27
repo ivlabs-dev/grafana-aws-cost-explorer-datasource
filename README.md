@@ -29,7 +29,9 @@ Current features include:
 - visual metric, daily/monthly granularity, grouping, filtering, and format
   controls
 - all six supported Cost Explorer metrics and up to two grouping dimensions
-- AWS service, linked account, region, and cost allocation tag filters
+- AWS service, linked account, region, and cost allocation tag filters, with
+  autocomplete suggestions from live AWS data where permitted (falls back to
+  free text otherwise)
 - paginated `GetCostAndUsage` execution
 - grouped and ungrouped Grafana time-series frames
 - incomplete daily/monthly period exclusion by default, with an explicit opt-in
@@ -169,7 +171,7 @@ not define an external ID as a password, but the plugin treats it as a secret.
 
 ## IAM policy
 
-The target AWS identity needs only this one least-privilege action:
+The target AWS identity needs only these least-privilege, read-only actions:
 
 ```json
 {
@@ -178,18 +180,23 @@ The target AWS identity needs only this one least-privilege action:
     {
       "Sid": "ReadCostExplorer",
       "Effect": "Allow",
-      "Action": "ce:GetCostAndUsage",
+      "Action": ["ce:GetCostAndUsage", "ce:GetDimensionValues", "ce:GetTags"],
       "Resource": "*"
     }
   ]
 }
 ```
 
-Cost Explorer does not provide a resource ARN for this operation, so
+Cost Explorer does not provide a resource ARN for these operations, so
 `Resource` must be `"*"`. The plugin does not need or request AWS write access.
 AssumeRole source identities additionally require `sts:AssumeRole` for the
 specific target role; that permission belongs in the source policy, not this
 target role policy.
+
+`ce:GetDimensionValues` and `ce:GetTags` are optional and additive: they power
+autocomplete suggestions in the query editor's filter fields. Without them,
+those fields still accept free-text values exactly as before — only
+`ce:GetCostAndUsage` is strictly required.
 
 The same policy is available at
 [`docs/iam-policy.json`](docs/iam-policy.json).
@@ -432,7 +439,8 @@ restarted after metadata changes.
 ## Security considerations
 
 - Prefer workload or IAM roles and short-lived credentials.
-- Give the final identity only `ce:GetCostAndUsage`.
+- Give the final identity only `ce:GetCostAndUsage`, plus the optional
+  `ce:GetDimensionValues`/`ce:GetTags` if you want filter autocomplete.
 - Restrict `sts:AssumeRole` to the intended target role.
 - Treat Grafana administrators and the Grafana host as privileged because the
   backend receives decrypted secure settings.
@@ -448,7 +456,6 @@ values.
 ## Current limitations
 
 - in-memory cache only; replicas do not share cache state
-- exact text filter entry rather than AWS dimension-value discovery
 - no hourly granularity
 - no cost category grouping or UI
 - highest-cost service uses the service name as its primary stat; portable
@@ -460,11 +467,11 @@ values.
 
 ## Roadmap
 
-Near-term priorities are AWS dimension-value autocomplete and stronger
-dashboard and plugin-e2e coverage. Later open-source extensions may add
-forecasts, cost categories, and optional distributed caching. CUR/Athena and
-any managed FinOps service will be designed as separate capabilities so they
-do not complicate the direct Cost Explorer experience.
+Near-term priorities are stronger dashboard and plugin-e2e coverage. Later
+open-source extensions may add cost forecasting, cost categories, and
+optional distributed caching. CUR/Athena and any managed FinOps service will
+be designed as separate capabilities so they do not complicate the direct
+Cost Explorer experience.
 
 ## Contributing
 

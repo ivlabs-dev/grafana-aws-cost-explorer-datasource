@@ -12,5 +12,5 @@ test('smoke: renders the visual Cost Explorer query editor', async ({
   await expect(row.getByRole('combobox', { name: 'Granularity' })).toBeVisible();
   await expect(row.getByRole('combobox', { name: 'Group by 1' })).toBeVisible();
   await expect(row.getByRole('combobox', { name: 'Result format' })).toBeVisible();
-  await expect(page.getByRole('textbox', { name: 'AWS service filter' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'AWS service' })).toBeVisible();
 });

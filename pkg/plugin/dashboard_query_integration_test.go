@@ -45,6 +45,22 @@ func (c *dashboardLifecycleClient) GetCostAndUsage(
 	}, nil
 }
 
+func (c *dashboardLifecycleClient) GetDimensionValues(
+	context.Context,
+	*awscostexplorer.GetDimensionValuesInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetDimensionValuesOutput, error) {
+	return &awscostexplorer.GetDimensionValuesOutput{}, nil
+}
+
+func (c *dashboardLifecycleClient) GetTags(
+	context.Context,
+	*awscostexplorer.GetTagsInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetTagsOutput, error) {
+	return &awscostexplorer.GetTagsOutput{}, nil
+}
+
 func TestDashboardQueryLifecycleReusesAWSResponseAcrossPresentations(t *testing.T) {
 	client := &dashboardLifecycleClient{}
 	datasource := newDatasource(

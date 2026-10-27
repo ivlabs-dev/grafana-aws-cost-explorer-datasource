@@ -4,7 +4,7 @@
     {
       "Sid": "ReadCostExplorer",
       "Effect": "Allow",
-      "Action": "ce:GetCostAndUsage",
+      "Action": ["ce:GetCostAndUsage", "ce:GetDimensionValues", "ce:GetTags"],
       "Resource": "*"
     }
   ]

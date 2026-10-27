@@ -13,10 +13,13 @@ import (
 	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/models"
 )
 
-// CostExplorerAPI is the smallest AWS interface required by the MVP and keeps
-// query and health tests independent from real AWS credentials.
+// CostExplorerAPI is the smallest AWS interface this plugin requires, and
+// keeps query, lookup, and health tests independent from real AWS
+// credentials.
 type CostExplorerAPI interface {
 	GetCostAndUsage(context.Context, *costexplorer.GetCostAndUsageInput, ...func(*costexplorer.Options)) (*costexplorer.GetCostAndUsageOutput, error)
+	GetDimensionValues(context.Context, *costexplorer.GetDimensionValuesInput, ...func(*costexplorer.Options)) (*costexplorer.GetDimensionValuesOutput, error)
+	GetTags(context.Context, *costexplorer.GetTagsInput, ...func(*costexplorer.Options)) (*costexplorer.GetTagsOutput, error)
 }
 
 type Bundle struct {
