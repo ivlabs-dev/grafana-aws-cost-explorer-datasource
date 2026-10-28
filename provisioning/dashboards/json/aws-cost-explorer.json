@@ -767,39 +767,109 @@
         "type": "ivlabsdev-awscostexplorer-datasource",
         "uid": "aws-cost-explorer"
       },
-      "description": "Most recent daily Reservation Utilization percentage for EC2 instances, the selected range. AWS reports Reservation utilization one service at a time and silently assumes EC2 if unset -- if you have RDS, ElastiCache, Redshift, or OpenSearch reservations instead, duplicate this panel and change the query editor's AWS service filter. Needs the optional ce:GetReservationUtilization IAM permission; without it this panel shows an error.",
+      "description": "RDS Reservation utilization (am I wasting what I bought?) plotted against coverage (could I be buying more?) over the selected range. Utilization near 100% with coverage well below it means your existing reservations are fully used and there's room to buy more and save further. Duplicate this panel and change both targets' AWS service field to see EC2, ElastiCache, or Redshift instead. Needs the optional ce:GetReservationUtilization/ce:GetReservationCoverage IAM permissions.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "fixed"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "decimals": 1,
           "unit": "percent",
-          "noValue": "No reservation utilization data"
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Utilization %"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Coverage %"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 5,
+        "h": 7,
         "w": 12,
         "x": 0,
         "y": 36
       },
       "id": 9,
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "showPercentChange": false,
-        "textMode": "value_and_name",
-        "wideLayout": true
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
@@ -807,58 +877,141 @@
           "granularity": "DAILY",
           "format": "timeSeries",
           "filter": {
-            "service": "Amazon Elastic Compute Cloud - Compute"
+            "service": "Amazon Relational Database Service"
           },
-          "groupBySubscription": false,
           "utilizationMetric": "UtilizationPercentage",
           "refId": "A",
           "version": 1,
           "alignMonthlyToCalendar": true,
           "includeIncompletePeriod": false,
           "rangeMode": "dashboard"
+        },
+        {
+          "queryType": "reservationCoverage",
+          "granularity": "DAILY",
+          "format": "timeSeries",
+          "filter": {
+            "service": "Amazon Relational Database Service"
+          },
+          "utilizationMetric": "CoverageHoursPercentage",
+          "refId": "B",
+          "version": 1,
+          "alignMonthlyToCalendar": true,
+          "includeIncompletePeriod": false,
+          "rangeMode": "dashboard"
         }
       ],
-      "title": "Reservation utilization % (EC2)",
-      "type": "stat"
+      "title": "Reservation utilization vs coverage % (RDS)",
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "ivlabsdev-awscostexplorer-datasource",
         "uid": "aws-cost-explorer"
       },
-      "description": "Most recent daily Savings Plans Utilization percentage for the selected range. Needs the optional ce:GetSavingsPlansUtilization IAM permission; without it this panel shows an error.",
+      "description": "Savings Plans utilization (am I wasting what I bought?) plotted against coverage (could I be buying more?) over the selected range. Utilization near 100% with coverage well below it means your existing commitment is fully used and there's room to buy more and save further. Needs the optional ce:GetSavingsPlansUtilization/ce:GetSavingsPlansCoverage IAM permissions.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "fixed"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "decimals": 1,
           "unit": "percent",
-          "noValue": "No Savings Plans utilization data"
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Utilization %"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Coverage %"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 5,
+        "h": 7,
         "w": 12,
         "x": 12,
         "y": 36
       },
       "id": 10,
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "showPercentChange": false,
-        "textMode": "value_and_name",
-        "wideLayout": true
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
@@ -872,17 +1025,29 @@
           "alignMonthlyToCalendar": true,
           "includeIncompletePeriod": false,
           "rangeMode": "dashboard"
+        },
+        {
+          "queryType": "savingsPlansCoverage",
+          "granularity": "DAILY",
+          "format": "timeSeries",
+          "filter": {},
+          "utilizationMetric": "CoveragePercentage",
+          "refId": "B",
+          "version": 1,
+          "alignMonthlyToCalendar": true,
+          "includeIncompletePeriod": false,
+          "rangeMode": "dashboard"
         }
       ],
-      "title": "Savings Plans utilization %",
-      "type": "stat"
+      "title": "Savings Plans utilization vs coverage %",
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "ivlabsdev-awscostexplorer-datasource",
         "uid": "aws-cost-explorer"
       },
-      "description": "Daily Reservation Utilization detail for EC2 instances: utilization %, net RI savings, On-Demand cost of RI hours used, total amortized fee, unused hours, and realized/unrealized savings. AWS reports this one service at a time -- duplicate this panel and change the query editor's AWS service filter for RDS, ElastiCache, Redshift, or OpenSearch reservations instead. Enable 'Group by subscription ID' in the query editor to break this down per subscription.",
+      "description": "Every Reservation this account owns across EC2, RDS, ElastiCache, Redshift, and OpenSearch, sorted by days until expiry. This reflects current state, not the dashboard's selected time range. Each service's permission is optional and independent: a service without its Describe permission is silently excluded, and a service that fails for another reason is excluded with a warning notice rather than failing the whole panel. Needs the optional ec2:DescribeReservedInstances, rds:DescribeReservedDBInstances, elasticache:DescribeReservedCacheNodes, redshift:DescribeReservedNodes, and es:DescribeReservedInstances IAM permissions.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -891,7 +1056,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 41
+        "y": 43
       },
       "id": 11,
       "options": {
@@ -900,29 +1065,40 @@
       },
       "targets": [
         {
-          "queryType": "reservationUtilization",
-          "granularity": "DAILY",
-          "format": "table",
-          "filter": {
-            "service": "Amazon Elastic Compute Cloud - Compute"
-          },
-          "groupBySubscription": false,
+          "queryType": "reservationInventory",
           "refId": "A",
-          "version": 1,
-          "alignMonthlyToCalendar": true,
-          "includeIncompletePeriod": false,
-          "rangeMode": "dashboard"
+          "version": 1
         }
       ],
-      "title": "Reservation utilization detail (EC2)",
-      "type": "table"
+      "title": "Reservations",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "fieldName": "State",
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "retired"
+                  }
+                }
+              }
+            ],
+            "type": "exclude",
+            "match": "any"
+          }
+        }
+      ]
     },
     {
       "datasource": {
         "type": "ivlabsdev-awscostexplorer-datasource",
         "uid": "aws-cost-explorer"
       },
-      "description": "Daily Savings Plans Utilization detail: utilization %, used/unused/total commitment, net savings, On-Demand cost equivalent, and total amortized commitment. This API never groups by dimension.",
+      "description": "Every Savings Plan this account owns, sorted by days until expiry. This reflects current state, not the dashboard's selected time range. Needs the optional savingsplans:DescribeSavingsPlans IAM permission; without it this panel shows an error.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -931,7 +1107,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 41
+        "y": 43
       },
       "id": 12,
       "options": {
@@ -940,19 +1116,33 @@
       },
       "targets": [
         {
-          "queryType": "savingsPlansUtilization",
-          "granularity": "DAILY",
-          "format": "table",
-          "filter": {},
+          "queryType": "savingsPlansInventory",
           "refId": "A",
-          "version": 1,
-          "alignMonthlyToCalendar": true,
-          "includeIncompletePeriod": false,
-          "rangeMode": "dashboard"
+          "version": 1
         }
       ],
-      "title": "Savings Plans utilization detail",
-      "type": "table"
+      "title": "Savings Plans",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "fieldName": "State",
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "retired"
+                  }
+                }
+              }
+            ],
+            "type": "exclude",
+            "match": "any"
+          }
+        }
+      ]
     }
   ],
   "refresh": "",
