@@ -18,6 +18,7 @@ import {
 export const AUTH_OPTIONS: Array<ComboboxOption<AuthMode>> = [
   { label: 'Assume an IAM role', value: 'assumeRole' },
   { label: 'Static credentials', value: 'static' },
+  { label: 'Mock data (no AWS account needed)', value: 'mock' },
 ];
 
 export const METRIC_OPTIONS: Array<ComboboxOption<CostMetric>> = [

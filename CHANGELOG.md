@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Add a **Mock data** authentication mode needing no AWS account,
+  credentials, or IAM permissions at all. Every query type this plugin
+  supports -- Cost and usage, Reservation/Savings Plans utilization,
+  coverage, and inventory -- returns realistic synthetic data that respects
+  the actual requested date range, granularity, and grouping, via a new
+  `pkg/awsmock` package implementing the same client interfaces real AWS
+  SDK clients do. `CheckHealth` and every query type's existing dispatch
+  logic run completely unchanged against it; `SDKFactory.New` is the only
+  place that knows mock mode exists. Intended for evaluating the plugin,
+  demoing dashboards, or letting someone verify the plugin works without
+  sharing real AWS credentials -- for example, a Grafana plugin catalog
+  reviewer with no AWS account of their own.
 - Bundle the "AWS Cost Explorer overview" dashboard with the plugin itself,
   importable from the data source's **Dashboards** tab. It replaces the
   highest-cost-service stat with a top-10 services bar chart and splits tax

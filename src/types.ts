@@ -1,7 +1,7 @@
 import { DataSourceJsonData } from '@grafana/data';
 import { DataQuery } from '@grafana/schema';
 
-export type AuthMode = 'assumeRole' | 'static';
+export type AuthMode = 'assumeRole' | 'static' | 'mock';
 export type CostMetric =
   'UnblendedCost' | 'BlendedCost' | 'AmortizedCost' | 'NetAmortizedCost' | 'NetUnblendedCost' | 'UsageQuantity';
 export type Granularity = 'DAILY' | 'MONTHLY';

@@ -876,14 +876,18 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 		"cache", execution.CacheStatus(),
 		"aws_duration_ms", execution.AWSDuration.Milliseconds(),
 	)
+	message := fmt.Sprintf(
+		"Connected to AWS Cost Explorer in %s using %s credentials (cache %s)",
+		d.settings.Region,
+		d.settings.AuthMode,
+		execution.CacheStatus(),
+	)
+	if d.settings.AuthMode == models.AuthModeMock {
+		message = "Using built-in mock data -- no AWS account, credentials, or permissions are used"
+	}
 	return &backend.CheckHealthResult{
-		Status: backend.HealthStatusOk,
-		Message: fmt.Sprintf(
-			"Connected to AWS Cost Explorer in %s using %s credentials (cache %s)",
-			d.settings.Region,
-			d.settings.AuthMode,
-			execution.CacheStatus(),
-		),
+		Status:  backend.HealthStatusOk,
+		Message: message,
 	}, nil
 }
 

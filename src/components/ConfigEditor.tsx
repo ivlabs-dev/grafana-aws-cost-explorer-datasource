@@ -56,23 +56,34 @@ export function ConfigEditor({ onOptionsChange, options }: Props) {
           onChange={(value) => updateJson({ authMode: value.value })}
         />
       </InlineField>
-      <InlineField
-        label="AWS region"
-        labelWidth={24}
-        required
-        invalid={Boolean(errors.region)}
-        error={errors.region}
-        tooltip="Region used for the Cost Explorer endpoint and request signing."
-      >
-        <Input
-          id="config-region"
-          aria-label="AWS region"
-          value={jsonData.region}
-          placeholder="us-east-1"
-          width={48}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => updateJson({ region: event.currentTarget.value })}
-        />
-      </InlineField>
+      {jsonData.authMode === 'mock' && (
+        <Alert title="No AWS account needed" severity="info">
+          This data source returns synthetic example data for every query type -- Cost and usage, Reservation/Savings
+          Plans utilization, coverage, and inventory. No AWS account, credentials, or IAM permissions are needed. Useful
+          for evaluating the plugin, demoing dashboards, or letting someone verify the plugin works without sharing real
+          AWS credentials (for example, a Grafana plugin catalog reviewer).
+        </Alert>
+      )}
+
+      {jsonData.authMode !== 'mock' && (
+        <InlineField
+          label="AWS region"
+          labelWidth={24}
+          required
+          invalid={Boolean(errors.region)}
+          error={errors.region}
+          tooltip="Region used for the Cost Explorer endpoint and request signing."
+        >
+          <Input
+            id="config-region"
+            aria-label="AWS region"
+            value={jsonData.region}
+            placeholder="us-east-1"
+            width={48}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => updateJson({ region: event.currentTarget.value })}
+          />
+        </InlineField>
+      )}
 
       {jsonData.authMode === 'assumeRole' && (
         <>

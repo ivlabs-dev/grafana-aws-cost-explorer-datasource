@@ -25,6 +25,10 @@ Current features include:
 - explicit AWS credentials stored only in Grafana secure JSON data
 - AssumeRole with explicit source credentials, optional external ID, and role
   session name
+- a **Mock data** mode needing no AWS account, credentials, or IAM
+  permissions at all, returning realistic synthetic data for every query
+  type -- for evaluating the plugin, demoing dashboards, or letting a
+  reviewer verify it works without sharing real credentials
 - `CheckHealth` credential resolution and a minimal Cost Explorer request
 - visual metric, daily/monthly granularity, grouping, filtering, and format
   controls
@@ -186,7 +190,26 @@ trust that source. The target role needs the Cost Explorer policy below.
 The source credentials and external ID are stored in secure JSON data. AWS does
 not define an external ID as a password, but the plugin treats it as a secret.
 
+### Mock data
+
+Choose **Mock data (no AWS account needed)** to run the data source entirely
+without AWS: no region, credentials, or IAM permissions are needed anywhere.
+Every query type this plugin supports — Cost and usage, Reservation/Savings
+Plans utilization, coverage, and inventory — returns realistic synthetic data
+that respects the actual requested date range, granularity, and grouping, so
+the bundled dashboard and every panel in it render normally.
+
+This exists to let the plugin be evaluated, demoed, or reviewed without ever
+sharing real AWS credentials — for example, if a Grafana plugin catalog
+reviewer has no AWS account of their own to test against, point them at mock
+mode instead of sending an access key ID and secret. Mock data is obviously
+synthetic (deterministic placeholder service names, account IDs, and
+reservation/Savings Plan IDs) and never reflects anyone's real AWS usage.
+
 ## IAM policy
+
+This entire section is irrelevant for **Mock data** mode — it needs none of
+these actions, or any AWS identity at all.
 
 The target AWS identity needs only `ce:GetCostAndUsage` to run at all. Every
 other action below is additive — the plugin keeps working without it, but
@@ -355,6 +378,7 @@ locally instead of in CI.
 
 ```text
 pkg/awsclient       AWS SDK v2 client and credential factory
+pkg/awsmock         synthetic data for Mock data mode (no AWS account needed)
 pkg/cache           bounded TTL/LRU cache and request deduplication
 pkg/costexplorer    request construction, pagination, and error mapping
 pkg/frames          Grafana data-frame conversion

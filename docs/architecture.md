@@ -73,6 +73,19 @@ configured role ARN, optional external ID, and role session name are sent to
 STS. Resulting temporary credentials are held by the SDK and never exposed to
 the plugin frontend or query model.
 
+### Mock data
+
+`SDKFactory.New` (`pkg/awsclient/factory.go`) checks `AuthMode` before doing
+any AWS configuration work at all. When it's `AuthModeMock`, the function
+returns a `Bundle` built entirely from `pkg/awsmock` -- synthetic
+implementations of every client interface in `Bundle`, plus a
+`ResolveCredentials` that always succeeds -- and returns immediately, without
+constructing an AWS SDK config, loading credentials, or making a network
+call. No other code changes behavior for mock mode: `CheckHealth` and every
+query type's dispatch logic in `pkg/plugin/datasource.go` are unaware which
+kind of `Bundle` they're holding, since they only depend on the same small
+interfaces real AWS SDK clients implement.
+
 ## Query lifecycle
 
 1. Decode, default, and validate the versioned query.

@@ -12,6 +12,12 @@ import (
 const (
 	AuthModeAssumeRole = "assumeRole"
 	AuthModeStatic     = "static"
+	// AuthModeMock needs no AWS account, credentials, or IAM permissions at
+	// all -- it returns synthetic data for every query type so the plugin
+	// can be evaluated, demoed, or reviewed (e.g. by a plugin catalog
+	// reviewer with no AWS account of their own) without ever sharing real
+	// credentials.
+	AuthModeMock = "mock"
 
 	DefaultRegion          = "us-east-1"
 	DefaultCacheTTLSeconds = 15 * 60
@@ -84,13 +90,17 @@ func (s *PluginSettings) ApplyDefaults() {
 
 func (s PluginSettings) Validate() error {
 	switch s.AuthMode {
-	case AuthModeAssumeRole, AuthModeStatic:
+	case AuthModeAssumeRole, AuthModeStatic, AuthModeMock:
 	default:
 		return fmt.Errorf("authentication mode %q is unsupported", s.AuthMode)
 	}
 
-	if !regionPattern.MatchString(s.Region) || !strings.Contains(s.Region, "-") {
-		return fmt.Errorf("AWS region %q is malformed", s.Region)
+	// Mock mode makes no AWS calls at all, so neither a real region nor
+	// credentials mean anything for it.
+	if s.AuthMode != AuthModeMock {
+		if !regionPattern.MatchString(s.Region) || !strings.Contains(s.Region, "-") {
+			return fmt.Errorf("AWS region %q is malformed", s.Region)
+		}
 	}
 	if s.CacheTTLSeconds < 1 || s.CacheTTLSeconds > MaxCacheTTLSeconds {
 		return fmt.Errorf("cache TTL must be between 1 and %d seconds", MaxCacheTTLSeconds)

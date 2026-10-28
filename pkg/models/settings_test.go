@@ -59,6 +59,26 @@ func TestPluginSettingsStaticCredentialsValidation(t *testing.T) {
 	}
 }
 
+func TestPluginSettingsMockValidation(t *testing.T) {
+	settings := PluginSettings{
+		AuthMode:        AuthModeMock,
+		CacheTTLSeconds: DefaultCacheTTLSeconds,
+		CacheMaxEntries: DefaultCacheMaxEntries,
+		Secrets:         &SecretPluginSettings{},
+	}
+	// No region, no credentials of any kind -- still valid, since mock mode
+	// makes no AWS calls at all.
+	if err := settings.Validate(); err != nil {
+		t.Fatalf("valid mock settings with no region/credentials failed validation: %v", err)
+	}
+
+	// Cache bounds still apply to every auth mode, mock included.
+	settings.CacheTTLSeconds = 0
+	if err := settings.Validate(); err == nil {
+		t.Fatal("expected an out-of-bounds cache TTL to fail validation even in mock mode")
+	}
+}
+
 func TestPluginSettingsRejectsDefaultCredentialChain(t *testing.T) {
 	settings := PluginSettings{
 		AuthMode:        "default",

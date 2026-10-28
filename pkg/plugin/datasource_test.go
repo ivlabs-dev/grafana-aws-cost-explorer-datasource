@@ -242,6 +242,36 @@ func TestCheckHealthResolvesCredentialsAndQueriesCostExplorer(t *testing.T) {
 	}
 }
 
+func TestCheckHealthMockModeNeedsNoAWSAccount(t *testing.T) {
+	datasource := newDatasource(
+		context.Background(),
+		backend.DataSourceInstanceSettings{
+			UID: "test",
+			JSONData: []byte(`{
+				"authMode": "mock",
+				"cacheTTLSeconds": 900,
+				"cacheMaxEntries": 256
+			}`),
+		},
+		awsclient.NewFactory(),
+		log.NewNullLogger(),
+	)
+
+	result, err := datasource.CheckHealth(context.Background(), &backend.CheckHealthRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != backend.HealthStatusOk {
+		t.Fatalf("health status = %s, message = %s", result.Status, result.Message)
+	}
+	if !strings.Contains(result.Message, "mock data") {
+		t.Fatalf("expected the mock-mode health message to mention mock data, got %q", result.Message)
+	}
+	if strings.Contains(result.Message, "Connected to AWS") {
+		t.Fatalf("mock-mode health message should not claim a real AWS connection, got %q", result.Message)
+	}
+}
+
 func TestCheckHealthDoesNotExposeAWSErrors(t *testing.T) {
 	const detail = "internal AWS error detail"
 	tests := []struct {
