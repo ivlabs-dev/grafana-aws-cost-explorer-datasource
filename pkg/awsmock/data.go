@@ -89,7 +89,7 @@ func baseCostFor(label string) float64 {
 // screenshots and demo dashboards stay stable across refreshes rather than
 // flickering on every query.
 func jitter(seed, day int) float64 {
-	h := seed*2654435761 + day*40503
+	h := int64(seed)*2654435761 + int64(day)*40503
 	if h < 0 {
 		h = -h
 	}
