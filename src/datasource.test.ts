@@ -31,6 +31,16 @@ describe('DataSource.filterQuery', () => {
     );
   });
 
+  it('does not require granularity, format, or a metric for the inventory query types', () => {
+    // The bundled example dashboard's inventory panels set nothing but
+    // queryType, since these are snapshot queries with no period/metric at
+    // all. This is the same regression class as the utilization query
+    // types above, now guarded for these two types too.
+    const bare = { refId: 'A', version: 1 as const };
+    expect(filterQuery({ ...bare, queryType: 'reservationInventory' } as unknown as CostQuery)).toBe(true);
+    expect(filterQuery({ ...bare, queryType: 'savingsPlansInventory' } as unknown as CostQuery)).toBe(true);
+  });
+
   it('treats a missing queryType (pre-existing saved queries) as cost-and-usage', () => {
     const { queryType: _queryType, ...legacyQuery } = DEFAULT_QUERY;
     expect(filterQuery(legacyQuery as CostQuery)).toBe(true);

@@ -27,6 +27,17 @@ export class DataSource extends DataSourceWithBackend<CostQuery, CostExplorerDat
   }
 
   filterQuery(query: CostQuery): boolean {
+    const queryType = query.queryType ?? 'costAndUsage';
+    // The inventory query types carry no granularity/format/metric at all --
+    // they're snapshot queries, not period-based -- so none of the checks
+    // below apply. Hand-authored dashboard JSON (e.g. the bundled example
+    // dashboard) for these never sets those fields, since they're
+    // irrelevant; requiring them unconditionally silently dropped these
+    // queries before Grafana ever sent them to the backend, the same way it
+    // once did for the utilization query types below.
+    if (queryType === 'reservationInventory' || queryType === 'savingsPlansInventory') {
+      return true;
+    }
     if (!query.granularity || !query.format) {
       return false;
     }
@@ -35,7 +46,6 @@ export class DataSource extends DataSourceWithBackend<CostQuery, CostExplorerDat
     // the utilization query types never sets one, since it's irrelevant
     // there -- requiring it unconditionally silently dropped those queries
     // before Grafana ever sent them to the backend.
-    const queryType = query.queryType ?? 'costAndUsage';
     return queryType === 'costAndUsage' ? Boolean(query.metric) : true;
   }
 
