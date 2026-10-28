@@ -5,9 +5,12 @@ import {
   Granularity,
   GroupBy,
   QueryType,
+  ReservationCoverageEligibleService,
+  ReservationCoverageMetric,
   ReservationEligibleService,
   ReservationUtilizationMetric,
   ResultFormat,
+  SavingsPlansCoverageMetric,
   SavingsPlansUtilizationMetric,
   TopN,
 } from './types';
@@ -63,10 +66,21 @@ export const RESERVATION_SERVICE_OPTIONS: Array<ComboboxOption<ReservationEligib
   { label: 'OpenSearch (Amazon Elasticsearch Service)', value: 'Amazon Elasticsearch Service' },
 ];
 
+export const RESERVATION_COVERAGE_SERVICE_OPTIONS: Array<ComboboxOption<ReservationCoverageEligibleService>> = [
+  { label: 'EC2 (Amazon Elastic Compute Cloud - Compute)', value: 'Amazon Elastic Compute Cloud - Compute' },
+  { label: 'RDS (Amazon Relational Database Service)', value: 'Amazon Relational Database Service' },
+  { label: 'ElastiCache (Amazon ElastiCache)', value: 'Amazon ElastiCache' },
+  { label: 'Redshift (Amazon Redshift)', value: 'Amazon Redshift' },
+];
+
 export const QUERY_TYPE_OPTIONS: Array<ComboboxOption<QueryType>> = [
   { label: 'Cost and usage', value: 'costAndUsage' },
   { label: 'Reservation utilization', value: 'reservationUtilization' },
   { label: 'Savings Plans utilization', value: 'savingsPlansUtilization' },
+  { label: 'Reservation inventory', value: 'reservationInventory' },
+  { label: 'Savings Plans inventory', value: 'savingsPlansInventory' },
+  { label: 'Reservation coverage', value: 'reservationCoverage' },
+  { label: 'Savings Plans coverage', value: 'savingsPlansCoverage' },
 ];
 
 export const RESERVATION_UTILIZATION_METRIC_OPTIONS: Array<ComboboxOption<ReservationUtilizationMetric>> = [
@@ -87,4 +101,19 @@ export const SAVINGS_PLANS_UTILIZATION_METRIC_OPTIONS: Array<ComboboxOption<Savi
   { label: 'Net savings', value: 'NetSavings' },
   { label: 'On-Demand cost equivalent', value: 'OnDemandCostEquivalent' },
   { label: 'Total amortized commitment', value: 'TotalAmortizedCommitment' },
+];
+
+export const RESERVATION_COVERAGE_METRIC_OPTIONS: Array<ComboboxOption<ReservationCoverageMetric>> = [
+  { label: 'Coverage %', value: 'CoverageHoursPercentage' },
+  { label: 'On-Demand hours (not covered)', value: 'OnDemandHours' },
+  { label: 'Reserved hours (covered)', value: 'ReservedHours' },
+  { label: 'Total running hours', value: 'TotalRunningHours' },
+  { label: 'On-Demand cost (not covered)', value: 'OnDemandCost' },
+];
+
+export const SAVINGS_PLANS_COVERAGE_METRIC_OPTIONS: Array<ComboboxOption<SavingsPlansCoverageMetric>> = [
+  { label: 'Coverage %', value: 'CoveragePercentage' },
+  { label: 'Spend covered by Savings Plans', value: 'SpendCoveredBySavingsPlans' },
+  { label: 'On-Demand cost (not covered)', value: 'OnDemandCost' },
+  { label: 'Total cost', value: 'TotalCost' },
 ];

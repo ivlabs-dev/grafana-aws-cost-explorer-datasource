@@ -325,4 +325,88 @@ describe('QueryEditor', () => {
 
     expect(view.onChange).toHaveBeenLastCalledWith(expect.objectContaining({ groupBySubscription: true }));
   });
+
+  it.each(['reservationInventory', 'savingsPlansInventory'] as const)(
+    'hides every period/format/filter field and shows the current-state alert for %s',
+    (queryType) => {
+      renderEditor({ ...DEFAULT_QUERY, queryType });
+
+      expect(screen.getByText(/Shows current state, not the dashboard's time range/)).toBeInTheDocument();
+      expect(screen.queryByLabelText('Granularity')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Result format')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('AWS service')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Linked account filter')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Region filter')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Group by subscription ID')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Utilization metric')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Include incomplete current period')).not.toBeInTheDocument();
+    }
+  );
+
+  it('switches to Reservation coverage with its own EC2 default and CoverageHoursPercentage metric', () => {
+    const view = renderEditor();
+
+    fireEvent.change(screen.getByLabelText('Query type'), { target: { value: 'reservationCoverage' } });
+
+    expect(view.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        queryType: 'reservationCoverage',
+        filter: { service: 'Amazon Elastic Compute Cloud - Compute' },
+        utilizationMetric: 'CoverageHoursPercentage',
+      })
+    );
+  });
+
+  it('switches to Savings Plans coverage with a CoveragePercentage default and no service filter', () => {
+    const view = renderEditor();
+
+    fireEvent.change(screen.getByLabelText('Query type'), { target: { value: 'savingsPlansCoverage' } });
+
+    expect(view.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        queryType: 'savingsPlansCoverage',
+        filter: {},
+        utilizationMetric: 'CoveragePercentage',
+      })
+    );
+  });
+
+  it('constrains the Reservation coverage service filter to its own 4-value dropdown (no OpenSearch)', () => {
+    renderEditor({
+      ...DEFAULT_QUERY,
+      queryType: 'reservationCoverage',
+      filter: { service: 'Amazon Elastic Compute Cloud - Compute' },
+    });
+
+    const serviceField = screen.getByLabelText('AWS service') as HTMLSelectElement;
+    const optionValues = Array.from(serviceField.options).map((option) => option.value);
+    expect(optionValues).toEqual([
+      'Amazon Elastic Compute Cloud - Compute',
+      'Amazon Relational Database Service',
+      'Amazon ElastiCache',
+      'Amazon Redshift',
+    ]);
+  });
+
+  it('hides the service filter and group-by-subscription switch for Savings Plans coverage', () => {
+    renderEditor({ ...DEFAULT_QUERY, queryType: 'savingsPlansCoverage' });
+
+    expect(screen.getByLabelText('Linked account filter')).toBeInTheDocument();
+    expect(screen.getByLabelText('Region filter')).toBeInTheDocument();
+    expect(screen.queryByLabelText('AWS service')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Group by subscription ID')).not.toBeInTheDocument();
+  });
+
+  it('hides the group-by-subscription switch for Reservation coverage (unlike Reservation utilization)', () => {
+    renderEditor({ ...DEFAULT_QUERY, queryType: 'reservationCoverage' });
+
+    expect(screen.getByLabelText('AWS service')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Group by subscription ID')).not.toBeInTheDocument();
+  });
+
+  it('shows Period options for coverage query types (unlike inventory types)', () => {
+    renderEditor({ ...DEFAULT_QUERY, queryType: 'reservationCoverage' });
+
+    expect(screen.getByLabelText('Include incomplete current period')).toBeInTheDocument();
+  });
 });

@@ -8,8 +8,11 @@ import {
   GROUP_OPTIONS,
   METRIC_OPTIONS,
   QUERY_TYPE_OPTIONS,
+  RESERVATION_COVERAGE_METRIC_OPTIONS,
+  RESERVATION_COVERAGE_SERVICE_OPTIONS,
   RESERVATION_SERVICE_OPTIONS,
   RESERVATION_UTILIZATION_METRIC_OPTIONS,
+  SAVINGS_PLANS_COVERAGE_METRIC_OPTIONS,
   SAVINGS_PLANS_UTILIZATION_METRIC_OPTIONS,
 } from '../options';
 import { GroupLimitOptions } from './GroupLimitOptions';
@@ -22,11 +25,28 @@ import {
   GroupBy,
   normalizeQuery,
   QueryType,
+  ReservationCoverageEligibleService,
+  ReservationCoverageMetric,
   ReservationEligibleService,
   ReservationUtilizationMetric,
   ResultFormat,
+  SavingsPlansCoverageMetric,
   SavingsPlansUtilizationMetric,
 } from '../types';
+
+// Mirrors pkg/models/query.go's defaultUtilizationMetricFor: Coverage's
+// curated lists don't contain "UtilizationPercentage" at all -- each API has
+// its own differently-named percentage field.
+function defaultUtilizationMetricFor(queryType: QueryType): CostQuery['utilizationMetric'] {
+  switch (queryType) {
+    case 'reservationCoverage':
+      return 'CoverageHoursPercentage';
+    case 'savingsPlansCoverage':
+      return 'CoveragePercentage';
+    default:
+      return 'UtilizationPercentage';
+  }
+}
 
 type Props = QueryEditorProps<DataSource, CostQuery, CostExplorerDataSourceOptions>;
 
@@ -67,25 +87,40 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
     // Switching query type resets fields that are specific to the previous
     // type, so a stale metric/groupBy/filter/utilization-metric can't
     // silently carry over into a query shape it doesn't apply to.
-    // Reservation utilization gets an explicit, visible service default
-    // (matching AWS's own silent EC2 default) rather than an empty filter --
-    // leaving it empty doesn't mean "all reservations" to AWS.
+    // Reservation utilization/coverage get an explicit, visible service
+    // default (matching AWS's own silent EC2 default) rather than an empty
+    // filter -- leaving it empty doesn't mean "all reservations" to AWS.
     update({
       queryType: value,
       groupBy: [],
       topN: 0,
-      filter: value === 'reservationUtilization' ? { service: 'Amazon Elastic Compute Cloud - Compute' } : {},
+      filter:
+        value === 'reservationUtilization' || value === 'reservationCoverage'
+          ? { service: 'Amazon Elastic Compute Cloud - Compute' }
+          : {},
       groupBySubscription: false,
-      utilizationMetric: 'UtilizationPercentage',
+      utilizationMetric: defaultUtilizationMetricFor(value),
     });
   };
 
   const isReservationUtilization = model.queryType === 'reservationUtilization';
   const isSavingsPlansUtilization = model.queryType === 'savingsPlansUtilization';
-  const isUtilization = isReservationUtilization || isSavingsPlansUtilization;
+  const isReservationCoverage = model.queryType === 'reservationCoverage';
+  const isSavingsPlansCoverage = model.queryType === 'savingsPlansCoverage';
+  const isReservationFlavor = isReservationUtilization || isReservationCoverage;
+  const isUtilizationOrCoverage =
+    isReservationUtilization || isSavingsPlansUtilization || isReservationCoverage || isSavingsPlansCoverage;
+  const isInventory = model.queryType === 'reservationInventory' || model.queryType === 'savingsPlansInventory';
   const utilizationMetricOptions = isReservationUtilization
     ? RESERVATION_UTILIZATION_METRIC_OPTIONS
-    : SAVINGS_PLANS_UTILIZATION_METRIC_OPTIONS;
+    : isSavingsPlansUtilization
+      ? SAVINGS_PLANS_UTILIZATION_METRIC_OPTIONS
+      : isReservationCoverage
+        ? RESERVATION_COVERAGE_METRIC_OPTIONS
+        : SAVINGS_PLANS_COVERAGE_METRIC_OPTIONS;
+  const reservationServiceOptions = isReservationCoverage
+    ? RESERVATION_COVERAGE_SERVICE_OPTIONS
+    : RESERVATION_SERVICE_OPTIONS;
 
   return (
     <div>
@@ -235,7 +270,7 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
         </>
       )}
 
-      {isUtilization && (
+      {isUtilizationOrCoverage && (
         <>
           <InlineField label="Granularity" labelWidth={18} htmlFor="query-granularity" required>
             <Combobox<Granularity>
@@ -256,17 +291,17 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
             />
           </InlineField>
 
-          {isReservationUtilization && (
+          {isReservationFlavor && (
             <InlineField
               label="AWS service"
               labelWidth={18}
               htmlFor="query-filter-reservation-service"
               required
-              tooltip="AWS only reports Reservation utilization one service at a time, and silently assumes EC2 if this isn't set -- which can make real reservations in another service (RDS being the most common case) look like no reservations at all."
+              tooltip={`AWS only reports Reservation ${isReservationCoverage ? 'coverage' : 'utilization'} one service at a time, and silently assumes EC2 if this isn't set -- which can make real reservations in another service (RDS being the most common case) look like no reservations at all.`}
             >
-              <Combobox<ReservationEligibleService>
+              <Combobox<ReservationEligibleService | ReservationCoverageEligibleService>
                 id="query-filter-reservation-service"
-                options={RESERVATION_SERVICE_OPTIONS}
+                options={reservationServiceOptions}
                 value={model.filter.service as ReservationEligibleService}
                 width={48}
                 onChange={(value) => {
@@ -324,7 +359,12 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
 
           {model.format === 'timeSeries' && (
             <InlineField label="Utilization metric" labelWidth={18} htmlFor="query-utilization-metric" required>
-              <Combobox<ReservationUtilizationMetric | SavingsPlansUtilizationMetric>
+              <Combobox<
+                | ReservationUtilizationMetric
+                | SavingsPlansUtilizationMetric
+                | ReservationCoverageMetric
+                | SavingsPlansCoverageMetric
+              >
                 id="query-utilization-metric"
                 options={utilizationMetricOptions}
                 value={model.utilizationMetric}
@@ -336,7 +376,14 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
         </>
       )}
 
-      <PeriodOptions query={model} onChange={(patch) => update(patch)} />
+      {isInventory && (
+        <Alert title="Shows current state, not the dashboard's time range" severity="info">
+          This query type lists what you currently own -- it always reflects right now and ignores the dashboard&apos;s
+          selected time range.
+        </Alert>
+      )}
+
+      {!isInventory && <PeriodOptions query={model} onChange={(patch) => update(patch)} />}
 
       {model.queryType === 'costAndUsage' && model.metric === 'UsageQuantity' && (
         <Alert title="Usage quantities can have different units" severity="warning">
