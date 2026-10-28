@@ -31,6 +31,12 @@ type mockClient struct {
 
 	savingsPlansUtilizationCalls int
 	savingsPlansUtilizationFn    func(*awscostexplorer.GetSavingsPlansUtilizationInput) (*awscostexplorer.GetSavingsPlansUtilizationOutput, error)
+
+	reservationCoverageCalls int
+	reservationCoverageFn    func(*awscostexplorer.GetReservationCoverageInput) (*awscostexplorer.GetReservationCoverageOutput, error)
+
+	savingsPlansCoverageCalls int
+	savingsPlansCoverageFn    func(*awscostexplorer.GetSavingsPlansCoverageInput) (*awscostexplorer.GetSavingsPlansCoverageOutput, error)
 }
 
 func (m *mockClient) GetCostAndUsage(
@@ -98,6 +104,34 @@ func (m *mockClient) GetSavingsPlansUtilization(
 		return &awscostexplorer.GetSavingsPlansUtilizationOutput{}, nil
 	}
 	return m.savingsPlansUtilizationFn(input)
+}
+
+func (m *mockClient) GetReservationCoverage(
+	_ context.Context,
+	input *awscostexplorer.GetReservationCoverageInput,
+	_ ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetReservationCoverageOutput, error) {
+	m.mu.Lock()
+	m.reservationCoverageCalls++
+	m.mu.Unlock()
+	if m.reservationCoverageFn == nil {
+		return &awscostexplorer.GetReservationCoverageOutput{}, nil
+	}
+	return m.reservationCoverageFn(input)
+}
+
+func (m *mockClient) GetSavingsPlansCoverage(
+	_ context.Context,
+	input *awscostexplorer.GetSavingsPlansCoverageInput,
+	_ ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetSavingsPlansCoverageOutput, error) {
+	m.mu.Lock()
+	m.savingsPlansCoverageCalls++
+	m.mu.Unlock()
+	if m.savingsPlansCoverageFn == nil {
+		return &awscostexplorer.GetSavingsPlansCoverageOutput{}, nil
+	}
+	return m.savingsPlansCoverageFn(input)
 }
 
 func TestServicePaginationAndCache(t *testing.T) {
@@ -507,6 +541,28 @@ func savingsPlansUtilizationQuery() models.Query {
 	return q
 }
 
+func reservationCoverageQuery() models.Query {
+	q := models.Query{
+		Version:     models.QueryVersion,
+		QueryType:   models.QueryTypeReservationCoverage,
+		Granularity: models.GranularityDaily,
+		Format:      models.FormatTimeSeries,
+	}
+	q.ApplyDefaults()
+	return q
+}
+
+func savingsPlansCoverageQuery() models.Query {
+	q := models.Query{
+		Version:     models.QueryVersion,
+		QueryType:   models.QueryTypeSavingsPlansCoverage,
+		Granularity: models.GranularityDaily,
+		Format:      models.FormatTimeSeries,
+	}
+	q.ApplyDefaults()
+	return q
+}
+
 func TestReservationUtilizationPaginatesAndCaches(t *testing.T) {
 	client := &mockClient{
 		reservationUtilizationFn: func(
@@ -701,6 +757,179 @@ func TestSavingsPlansUtilizationClassifiesAWSError(t *testing.T) {
 
 	_, err := service.SavingsPlansUtilization(
 		context.Background(), validSettings(), savingsPlansUtilizationQuery(), models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err == nil {
+		t.Fatal("expected a classified AWS error")
+	}
+}
+
+func TestReservationCoveragePaginatesAndCaches(t *testing.T) {
+	client := &mockClient{
+		reservationCoverageFn: func(
+			input *awscostexplorer.GetReservationCoverageInput,
+		) (*awscostexplorer.GetReservationCoverageOutput, error) {
+			if len(input.Metrics) != 2 || input.Metrics[0] != "Hour" || input.Metrics[1] != "Cost" {
+				t.Fatalf("metrics = %v, want [Hour Cost]", input.Metrics)
+			}
+			if input.NextPageToken == nil {
+				return &awscostexplorer.GetReservationCoverageOutput{
+					NextPageToken: aws.String("page-2"),
+					CoveragesByTime: []types.CoverageByTime{{
+						TimePeriod: &types.DateInterval{Start: aws.String("2026-07-01")},
+						Total: &types.Coverage{
+							CoverageHours: &types.CoverageHours{CoverageHoursPercentage: aws.String("40%")},
+						},
+					}},
+				}, nil
+			}
+			return &awscostexplorer.GetReservationCoverageOutput{
+				CoveragesByTime: []types.CoverageByTime{{
+					TimePeriod: &types.DateInterval{Start: aws.String("2026-07-02")},
+					Total: &types.Coverage{
+						CoverageHours: &types.CoverageHours{CoverageHoursPercentage: aws.String("50%")},
+					},
+				}},
+			}, nil
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+	dateRange := models.DateRange{Start: "2026-07-01", End: "2026-07-03"}
+
+	first, err := service.ReservationCoverage(context.Background(), validSettings(), reservationCoverageQuery(), dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Pages != 2 || first.CacheResult != cache.ResultMiss || len(first.Output.CoveragesByTime) != 2 {
+		t.Fatalf("unexpected first execution: %+v", first)
+	}
+
+	second, err := service.ReservationCoverage(context.Background(), validSettings(), reservationCoverageQuery(), dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.CacheResult != cache.ResultHit {
+		t.Fatalf("second cache result = %s, want hit", second.CacheResult)
+	}
+	if client.reservationCoverageCalls != 2 {
+		t.Fatalf("AWS calls = %d, want two pages from one logical request", client.reservationCoverageCalls)
+	}
+}
+
+func TestReservationCoverageTreatsDataUnavailableAsEmptySuccess(t *testing.T) {
+	client := &mockClient{
+		reservationCoverageFn: func(*awscostexplorer.GetReservationCoverageInput) (*awscostexplorer.GetReservationCoverageOutput, error) {
+			return nil, &smithy.GenericAPIError{Code: "DataUnavailableException", Message: "The requested data is unavailable."}
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	execution, err := service.ReservationCoverage(
+		context.Background(), validSettings(), reservationCoverageQuery(), models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err != nil {
+		t.Fatalf("expected a successful empty result, got error: %v", err)
+	}
+	if execution.Output == nil || len(execution.Output.CoveragesByTime) != 0 {
+		t.Fatalf("expected an empty output, got %+v", execution.Output)
+	}
+}
+
+func TestReservationCoverageClassifiesAWSError(t *testing.T) {
+	client := &mockClient{
+		reservationCoverageFn: func(*awscostexplorer.GetReservationCoverageInput) (*awscostexplorer.GetReservationCoverageOutput, error) {
+			return nil, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "denied"}
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	_, err := service.ReservationCoverage(
+		context.Background(), validSettings(), reservationCoverageQuery(), models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err == nil {
+		t.Fatal("expected a classified AWS error")
+	}
+}
+
+func TestSavingsPlansCoveragePaginatesAndCaches(t *testing.T) {
+	client := &mockClient{
+		savingsPlansCoverageFn: func(
+			input *awscostexplorer.GetSavingsPlansCoverageInput,
+		) (*awscostexplorer.GetSavingsPlansCoverageOutput, error) {
+			if input.NextToken == nil {
+				return &awscostexplorer.GetSavingsPlansCoverageOutput{
+					NextToken: aws.String("page-2"),
+					SavingsPlansCoverages: []types.SavingsPlansCoverage{{
+						TimePeriod: &types.DateInterval{Start: aws.String("2026-07-01")},
+						Coverage:   &types.SavingsPlansCoverageData{CoveragePercentage: aws.String("52%")},
+					}},
+				}, nil
+			}
+			return &awscostexplorer.GetSavingsPlansCoverageOutput{
+				SavingsPlansCoverages: []types.SavingsPlansCoverage{{
+					TimePeriod: &types.DateInterval{Start: aws.String("2026-07-02")},
+					Coverage:   &types.SavingsPlansCoverageData{CoveragePercentage: aws.String("60%")},
+				}},
+			}, nil
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+	dateRange := models.DateRange{Start: "2026-07-01", End: "2026-07-03"}
+
+	first, err := service.SavingsPlansCoverage(context.Background(), validSettings(), savingsPlansCoverageQuery(), dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Pages != 2 || first.CacheResult != cache.ResultMiss || len(first.Output.SavingsPlansCoverages) != 2 {
+		t.Fatalf("unexpected first execution: %+v", first)
+	}
+
+	second, err := service.SavingsPlansCoverage(context.Background(), validSettings(), savingsPlansCoverageQuery(), dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.CacheResult != cache.ResultHit {
+		t.Fatalf("second cache result = %s, want hit", second.CacheResult)
+	}
+	if client.savingsPlansCoverageCalls != 2 {
+		t.Fatalf("AWS calls = %d, want two pages from one logical request", client.savingsPlansCoverageCalls)
+	}
+}
+
+func TestSavingsPlansCoverageTreatsDataUnavailableAsEmptySuccess(t *testing.T) {
+	client := &mockClient{
+		savingsPlansCoverageFn: func(*awscostexplorer.GetSavingsPlansCoverageInput) (*awscostexplorer.GetSavingsPlansCoverageOutput, error) {
+			return nil, &smithy.GenericAPIError{Code: "DataUnavailableException", Message: "The requested data is unavailable."}
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	execution, err := service.SavingsPlansCoverage(
+		context.Background(), validSettings(), savingsPlansCoverageQuery(), models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
+	)
+	if err != nil {
+		t.Fatalf("expected a successful empty result, got error: %v", err)
+	}
+	if execution.Output == nil || len(execution.Output.SavingsPlansCoverages) != 0 {
+		t.Fatalf("expected an empty output, got %+v", execution.Output)
+	}
+}
+
+func TestSavingsPlansCoverageClassifiesAWSError(t *testing.T) {
+	client := &mockClient{
+		savingsPlansCoverageFn: func(*awscostexplorer.GetSavingsPlansCoverageInput) (*awscostexplorer.GetSavingsPlansCoverageOutput, error) {
+			return nil, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "denied"}
+		},
+	}
+	resultCache, _ := cache.NewMemory(time.Minute, 10)
+	service, _ := NewService(client, resultCache)
+
+	_, err := service.SavingsPlansCoverage(
+		context.Background(), validSettings(), savingsPlansCoverageQuery(), models.DateRange{Start: "2026-07-01", End: "2026-07-02"},
 	)
 	if err == nil {
 		t.Fatal("expected a classified AWS error")

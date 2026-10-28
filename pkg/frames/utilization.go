@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	awscostexplorer "github.com/aws/aws-sdk-go-v2/service/costexplorer"
@@ -145,16 +146,37 @@ func parseAWSFloat(value *string) float64 {
 	return parsed
 }
 
+// parseAWSPercent is like parseAWSFloat, but first strips a trailing "%" --
+// unlike Reservation/Savings Plans Utilization's UtilizationPercentage
+// (a plain number string), AWS's own GetReservationCoverage API reference
+// documents its percentage fields (e.g. CoverageHoursPercentage) with an
+// embedded "%" suffix in example responses.
+func parseAWSPercent(value *string) float64 {
+	if value == nil {
+		return 0
+	}
+	trimmed := strings.TrimSuffix(strings.TrimSpace(*value), "%")
+	parsed, err := strconv.ParseFloat(trimmed, 64)
+	if err != nil {
+		return 0
+	}
+	return parsed
+}
+
 // utilizationFieldUnits is an explicit, exact lookup rather than a substring
 // heuristic: OnDemandCostOfRIHoursUsed is a dollar amount despite its name
 // containing "Hours", so matching on "contains Hours" misclassifies it as a
-// duration. UnusedHours is the only curated field that is actually a
-// duration. Every other curated field is a dollar amount; neither API
-// returns a currency code alongside these fields, so dollar amounts are
-// assumed to be USD, matching Cost Explorer's typical behavior.
+// duration. Every field absent from this map defaults to a dollar amount;
+// neither API returns a currency code alongside these fields, so dollar
+// amounts are assumed to be USD, matching Cost Explorer's typical behavior.
 var utilizationFieldUnits = map[string]string{
-	"UtilizationPercentage": "percent",
-	"UnusedHours":           "h",
+	"UtilizationPercentage":   "percent",
+	"UnusedHours":             "h",
+	"CoveragePercentage":      "percent",
+	"CoverageHoursPercentage": "percent",
+	"OnDemandHours":           "h",
+	"ReservedHours":           "h",
+	"TotalRunningHours":       "h",
 }
 
 func utilizationFieldUnit(metric string) string {

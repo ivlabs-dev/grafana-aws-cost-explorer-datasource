@@ -9,7 +9,22 @@
         "ce:GetDimensionValues",
         "ce:GetTags",
         "ce:GetReservationUtilization",
-        "ce:GetSavingsPlansUtilization"
+        "ce:GetSavingsPlansUtilization",
+        "ce:GetReservationCoverage",
+        "ce:GetSavingsPlansCoverage"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadReservationAndSavingsPlansInventory",
+      "Effect": "Allow",
+      "Action": [
+        "savingsplans:DescribeSavingsPlans",
+        "ec2:DescribeReservedInstances",
+        "rds:DescribeReservedDBInstances",
+        "elasticache:DescribeReservedCacheNodes",
+        "redshift:DescribeReservedNodes",
+        "es:DescribeReservedInstances"
       ],
       "Resource": "*"
     }
