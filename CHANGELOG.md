@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 (2026-10-28)
 
 - Add a **Mock data** authentication mode needing no AWS account,
   credentials, or IAM permissions at all. Every query type this plugin
