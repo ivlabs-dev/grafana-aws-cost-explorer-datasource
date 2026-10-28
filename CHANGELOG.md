@@ -25,6 +25,109 @@
   normal empty result instead of AWS's `DataUnavailableException` error.
   Reservation/Savings Plans **coverage** is a planned follow-up, not part of
   this change.
+- Replace the bundled dashboard's Reservation/Savings Plans utilization stat
+  and per-day detail-table panels with utilization-percentage **trend
+  charts** (same data, just a different visualization) plus two new
+  **inventory** table panels, "Reservations" and "Savings Plans", listing
+  what the account currently owns with a computed days-until-expiry column
+  -- intended to make it easy to spot a Reservation or Savings Plan that
+  needs renewing (alerting on this is a follow-up, not part of this change).
+  Add matching **Reservation inventory** and **Savings Plans inventory**
+  query types. Unlike every other query type this plugin supports, these
+  reflect current state and ignore the dashboard's selected time range.
+  Savings Plans inventory uses the AWS Savings Plans service's
+  `DescribeSavingsPlans` (`savingsplans:DescribeSavingsPlans`, optional).
+  Reservation inventory merges one AWS "Describe" call per
+  reservation-eligible service -- EC2, RDS, ElastiCache, Redshift, and
+  OpenSearch (`ec2:DescribeReservedInstances`,
+  `rds:DescribeReservedDBInstances`, `elasticache:DescribeReservedCacheNodes`,
+  `redshift:DescribeReservedNodes`, `es:DescribeReservedInstances`, all
+  optional and independent of each other) -- excluding any service whose
+  permission wasn't granted from the merged list rather than failing the
+  whole query, with a warning notice for any other per-service failure.
+- Fix the query editor's `filterQuery` silently dropping the new inventory
+  query types' requests before they ever reached the backend -- it
+  unconditionally required `granularity`/`format` to be set, which the
+  bundled dashboard's inventory panels never set (snapshot queries don't
+  have a granularity or format). Same regression class the utilization
+  query types hit earlier in this file; now guarded with a test for all
+  four non-period-based query types.
+- Add **Reservation coverage** and **Savings Plans coverage** query types
+  (`ce:GetReservationCoverage`/`ce:GetSavingsPlansCoverage`, both optional
+  and additive) -- how much of your eligible usage is covered by what you
+  bought, as opposed to Utilization's how much of what you bought you're
+  using. Table and time-series presentation of a curated metric set, reusing
+  Utilization's presentation code. Reservation coverage's AWS service field
+  is a required, fixed dropdown like Reservation utilization's, but with a
+  narrower four-value list (EC2/RDS/ElastiCache/Redshift) -- AWS's own
+  `GetReservationCoverage` documentation doesn't mention OpenSearch at all,
+  unlike `GetReservationUtilization`. Six new bundled dashboard panels: a
+  coverage-percentage trend chart plus "On-Demand cost not covered" and
+  "Average coverage %" stat panels (computed by Grafana's own sum/mean
+  reduce calcs, no new backend aggregation) for both Reservation and Savings
+  Plans coverage. AWS's coverage percentage fields come back with an
+  embedded `%` suffix (unlike Utilization's plain-number fields); this is
+  stripped before parsing. Neither coverage query type supports grouping.
+  AWS's "Potential monthly savings vs On-Demand" figure (shown in its own
+  Coverage report) is sourced from the separate purchase-recommendation
+  APIs, not coverage data -- not part of this change, tracked on the
+  roadmap.
+- Fix Reservation inventory silently treating "no IAM permission for this
+  service" the same as "genuinely no reservations" -- a service whose
+  Describe permission wasn't granted is still excluded from the merged
+  list, but now with an Info notice naming the specific action to grant,
+  instead of no notice at all. Document that Reservation inventory is
+  scoped to the data source's configured AWS region (unlike every other
+  query type), since EC2/RDS/ElastiCache/Redshift/OpenSearch's Describe
+  calls are regional AWS APIs, not account-wide like Cost Explorer and
+  Savings Plans.
+- Add a "Filter data by values" transformation to the bundled dashboard's
+  **Reservations** and **Savings Plans** panels that excludes `retired`
+  rows by default, so expired/returned items don't clutter the default
+  view. The backend still returns every state AWS reports; remove or edit
+  the transformation to see retired ones.
+- Switch the bundled dashboard's Reservation utilization/coverage panels'
+  default AWS service from EC2 to RDS, since RDS (along with ElastiCache,
+  Redshift, and OpenSearch) has no Savings Plans equivalent at all -- unlike
+  EC2, Reserved Instances are the only commitment-discount AWS offers for
+  those services. Duplicate the relevant panel and change its query
+  editor's AWS service field to see a different service's reservations
+  instead; a dashboard-variable-based approach was tried and reverted in
+  favor of this simpler, explicit default.
+- Fix the Reservation/Savings Plans utilization and coverage trend charts'
+  Y-axis auto-scaling to 0-200% even though the underlying percentage can
+  never exceed 100%, wasting half the chart as dead space and making a
+  real, meaningful dip hard to see. Pin the axis to 0-100%.
+- Combine the bundled dashboard's four separate Reservation/Savings Plans
+  utilization and coverage trend charts into two panels, each plotting
+  Utilization % and Coverage % together as two lines over the same range --
+  the gap between them is the actionable signal (utilization near 100% with
+  coverage well below it means there's room to buy more commitment and
+  save further), which was hard to read across four separate panels. Also
+  remove the four "On-Demand cost not covered"/"Average coverage %" stat
+  panels now that both lines are visible directly on the combined charts.
+  Bundled dashboard panel count drops from eighteen to twelve.
+- Rename `docs/iam-policy.json` to `docs/iam-policy-full.json` and add three
+  scoped alternatives --
+  `docs/iam-policy-cost-and-usage-only.json`,
+  `docs/iam-policy-reservations-only.json`, and
+  `docs/iam-policy-savings-plans-only.json` -- for granting only what a
+  given account actually uses, instead of the full permission set. Each
+  scoped policy still includes the required `ce:GetCostAndUsage` baseline
+  (nothing works without it) but otherwise only the actions for its own
+  feature set; autocomplete (`ce:GetDimensionValues`/`ce:GetTags`) is a
+  separate, unrelated feature and isn't bundled into the
+  Reservations/Savings-Plans-scoped files. Make explicit in the README's
+  IAM section that each optional action is required to see that specific
+  feature's data (not merely "nice to have"), and that a missing permission
+  always resolves to a scoped error on that one panel or query type --
+  never a crash, and never something that affects other panels.
+- Split the README's deep per-query-type reference material (period
+  semantics, and the full Reservation/Savings Plans utilization, inventory,
+  and coverage behavior) out into `docs/query-types.md`, and condense the
+  IAM policy section into a compact table. README drops from 816 to ~530
+  lines; no content removed, just relocated so the landing page stays
+  scannable.
 
 ## 1.0.8 (2026-09-19)
 

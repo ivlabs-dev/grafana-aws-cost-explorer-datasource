@@ -1,0 +1,29 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadCostAndUsage",
+      "Effect": "Allow",
+      "Action": "ce:GetCostAndUsage",
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadReservationUtilizationAndCoverage",
+      "Effect": "Allow",
+      "Action": ["ce:GetReservationUtilization", "ce:GetReservationCoverage"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadReservationInventory",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeReservedInstances",
+        "rds:DescribeReservedDBInstances",
+        "elasticache:DescribeReservedCacheNodes",
+        "redshift:DescribeReservedNodes",
+        "es:DescribeReservedInstances"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

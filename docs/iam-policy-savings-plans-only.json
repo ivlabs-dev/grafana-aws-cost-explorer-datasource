@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadCostAndUsage",
+      "Effect": "Allow",
+      "Action": "ce:GetCostAndUsage",
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadSavingsPlansUtilizationAndCoverage",
+      "Effect": "Allow",
+      "Action": ["ce:GetSavingsPlansUtilization", "ce:GetSavingsPlansCoverage"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadSavingsPlansInventory",
+      "Effect": "Allow",
+      "Action": ["savingsplans:DescribeSavingsPlans"],
+      "Resource": "*"
+    }
+  ]
+}
