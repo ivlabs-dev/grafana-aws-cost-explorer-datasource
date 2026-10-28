@@ -18,7 +18,9 @@ export function validateConfig(
   const settings = { ...DEFAULT_DATASOURCE_OPTIONS, ...options.jsonData };
   const errors: ConfigErrors = {};
 
-  if (!regionPattern.test(settings.region) || !settings.region.includes('-')) {
+  // Mock mode makes no AWS calls at all, so neither a real region nor
+  // credentials mean anything for it.
+  if (settings.authMode !== 'mock' && (!regionPattern.test(settings.region) || !settings.region.includes('-'))) {
     errors.region = 'Enter an AWS region such as us-east-1.';
   }
   if (settings.cacheTTLSeconds < 1 || settings.cacheTTLSeconds > 86400) {

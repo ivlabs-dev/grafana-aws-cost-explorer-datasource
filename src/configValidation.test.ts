@@ -64,6 +64,35 @@ describe('validateConfig', () => {
     ).toBeUndefined();
   });
 
+  it('accepts mock mode with no region or credentials set at all', () => {
+    expect(
+      validateConfig({
+        jsonData: {
+          authMode: 'mock',
+          region: '',
+          cacheTTLSeconds: 900,
+          cacheMaxEntries: 256,
+        },
+        secureJsonData: {},
+        secureJsonFields: {},
+      })
+    ).toEqual({});
+  });
+
+  it('still enforces cache bounds in mock mode', () => {
+    const errors = validateConfig({
+      jsonData: {
+        authMode: 'mock',
+        region: '',
+        cacheTTLSeconds: 0,
+        cacheMaxEntries: 256,
+      },
+      secureJsonData: {},
+      secureJsonFields: {},
+    });
+    expect(errors.cacheTTL).toBeDefined();
+  });
+
   it('requires explicit source credentials for AssumeRole', () => {
     const errors = validateConfig({
       jsonData: {

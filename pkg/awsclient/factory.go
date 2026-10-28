@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/aws/aws-sdk-go-v2/service/savingsplans"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/awsmock"
 	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/models"
 )
 
@@ -57,6 +58,19 @@ func (f *SDKFactory) New(ctx context.Context, settings models.PluginSettings) (*
 	settings.ApplyDefaults()
 	if err := settings.Validate(); err != nil {
 		return nil, err
+	}
+
+	if settings.AuthMode == models.AuthModeMock {
+		return &Bundle{
+			CostExplorer:            awsmock.CostExplorerClient{},
+			SavingsPlans:            awsmock.SavingsPlansClient{},
+			EC2Reservations:         awsmock.EC2Client{},
+			RDSReservations:         awsmock.RDSClient{},
+			ElastiCacheReservations: awsmock.ElastiCacheClient{},
+			RedshiftReservations:    awsmock.RedshiftClient{},
+			OpenSearchReservations:  awsmock.OpenSearchClient{},
+			ResolveCredentials:      awsmock.ResolveCredentials,
+		}, nil
 	}
 
 	// Always install the credentials explicitly supplied through Grafana.
