@@ -498,3 +498,17 @@ func ClassifyError(err error) error {
 		return fmt.Errorf("AWS Cost Explorer returned API error %s", apiError.ErrorCode())
 	}
 }
+
+// isDataUnavailable reports whether err is AWS Cost Explorer's
+// DataUnavailableException. The Reservation/Savings Plans utilization APIs
+// can return this for an account or period with no eligible usage at all
+// (e.g. an account with no Savings-Plans-eligible spend) -- that's a normal
+// "nothing to report" condition, not a real failure, so callers treat it as
+// an empty successful result instead of surfacing an error.
+func isDataUnavailable(err error) bool {
+	var apiError smithy.APIError
+	if !errors.As(err, &apiError) {
+		return false
+	}
+	return strings.EqualFold(apiError.ErrorCode(), "DataUnavailableException")
+}

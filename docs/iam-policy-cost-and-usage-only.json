@@ -2,7 +2,7 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "ReadCostExplorer",
+      "Sid": "ReadCostAndUsage",
       "Effect": "Allow",
       "Action": ["ce:GetCostAndUsage", "ce:GetDimensionValues", "ce:GetTags"],
       "Resource": "*"

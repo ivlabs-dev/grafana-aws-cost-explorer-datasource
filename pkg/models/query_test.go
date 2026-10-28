@@ -97,6 +97,323 @@ func TestQueryValidation(t *testing.T) {
 	}
 }
 
+func TestUtilizationQueryValidation(t *testing.T) {
+	base := func() Query {
+		q := Query{Version: QueryVersion, QueryType: QueryTypeReservationUtilization, Granularity: GranularityDaily, Format: FormatTimeSeries}
+		q.ApplyDefaults()
+		return q
+	}
+	savingsPlansBase := func() Query {
+		q := Query{Version: QueryVersion, QueryType: QueryTypeSavingsPlansUtilization, Granularity: GranularityDaily, Format: FormatTimeSeries}
+		q.ApplyDefaults()
+		return q
+	}
+
+	tests := []struct {
+		name    string
+		query   Query
+		wantErr bool
+	}{
+		{
+			name:  "valid reservation utilization",
+			query: base(),
+		},
+		{
+			name:  "valid savings plans utilization",
+			query: savingsPlansBase(),
+		},
+		{
+			name: "reservation utilization rejects tag filter",
+			query: func() Query {
+				q := base()
+				q.Filter = QueryFilter{TagKey: "Environment", TagValue: "prod"}
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "savings plans utilization rejects service filter",
+			query: func() Query {
+				q := savingsPlansBase()
+				q.Filter = QueryFilter{Service: "Amazon Elastic Compute Cloud - Compute"}
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "savings plans utilization rejects group by subscription",
+			query: func() Query {
+				q := savingsPlansBase()
+				q.GroupBySubscription = true
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "reservation utilization rejects an unknown utilization metric",
+			query: func() Query {
+				q := base()
+				q.UtilizationMetric = "NotARealMetric"
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "reservation utilization rejects an invalid service",
+			query: func() Query {
+				q := base()
+				q.Filter.Service = "Amazon Simple Storage Service"
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "reservation utilization rejects an empty service",
+			query: func() Query {
+				q := base()
+				q.Filter.Service = ""
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "savings plans utilization rejects a reservation-only metric",
+			query: func() Query {
+				q := savingsPlansBase()
+				q.UtilizationMetric = "NetRISavings"
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "reservation utilization accepts grouping by subscription",
+			query: func() Query {
+				q := base()
+				q.GroupBySubscription = true
+				return q
+			}(),
+		},
+		{
+			name: "reservation utilization accepts an RDS service filter",
+			query: func() Query {
+				q := base()
+				q.Filter.Service = "Amazon Relational Database Service"
+				return q
+			}(),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.query.Validate()
+			if (err != nil) != test.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestCoverageQueryValidation(t *testing.T) {
+	base := func() Query {
+		q := Query{Version: QueryVersion, QueryType: QueryTypeReservationCoverage, Granularity: GranularityDaily, Format: FormatTimeSeries}
+		q.ApplyDefaults()
+		return q
+	}
+	savingsPlansBase := func() Query {
+		q := Query{Version: QueryVersion, QueryType: QueryTypeSavingsPlansCoverage, Granularity: GranularityDaily, Format: FormatTimeSeries}
+		q.ApplyDefaults()
+		return q
+	}
+
+	tests := []struct {
+		name    string
+		query   Query
+		wantErr bool
+	}{
+		{name: "valid reservation coverage", query: base()},
+		{name: "valid savings plans coverage", query: savingsPlansBase()},
+		{
+			name: "reservation coverage defaults to EC2 and CoverageHoursPercentage",
+			query: func() Query {
+				q := base()
+				if q.Filter.Service != DefaultReservationService {
+					t.Fatalf("service default = %q, want %q", q.Filter.Service, DefaultReservationService)
+				}
+				if q.UtilizationMetric != "CoverageHoursPercentage" {
+					t.Fatalf("utilizationMetric default = %q, want CoverageHoursPercentage", q.UtilizationMetric)
+				}
+				return q
+			}(),
+		},
+		{
+			name: "savings plans coverage defaults to CoveragePercentage",
+			query: func() Query {
+				q := savingsPlansBase()
+				if q.UtilizationMetric != "CoveragePercentage" {
+					t.Fatalf("utilizationMetric default = %q, want CoveragePercentage", q.UtilizationMetric)
+				}
+				return q
+			}(),
+		},
+		{
+			name: "reservation coverage rejects tag filter",
+			query: func() Query {
+				q := base()
+				q.Filter.TagKey = "Environment"
+				q.Filter.TagValue = "prod"
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "reservation coverage rejects an invalid service",
+			query: func() Query {
+				q := base()
+				q.Filter.Service = "Amazon Simple Storage Service"
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "reservation coverage rejects OpenSearch (valid for Utilization, not Coverage)",
+			query: func() Query {
+				q := base()
+				q.Filter.Service = "Amazon Elasticsearch Service"
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "reservation coverage accepts an RDS service filter",
+			query: func() Query {
+				q := base()
+				q.Filter.Service = "Amazon Relational Database Service"
+				return q
+			}(),
+		},
+		{
+			name: "savings plans coverage rejects a service filter",
+			query: func() Query {
+				q := savingsPlansBase()
+				q.Filter.Service = "Amazon Elastic Compute Cloud - Compute"
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "reservation coverage rejects grouping by subscription",
+			query: func() Query {
+				q := base()
+				q.GroupBySubscription = true
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "reservation coverage rejects a utilization-only metric",
+			query: func() Query {
+				q := base()
+				q.UtilizationMetric = "UtilizationPercentage"
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "savings plans coverage rejects a reservation-only metric",
+			query: func() Query {
+				q := savingsPlansBase()
+				q.UtilizationMetric = "CoverageHoursPercentage"
+				return q
+			}(),
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.query.Validate()
+			if (err != nil) != test.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestInventoryQueryValidation(t *testing.T) {
+	base := func(queryType string) Query {
+		q := Query{Version: QueryVersion, QueryType: queryType}
+		q.ApplyDefaults()
+		return q
+	}
+
+	tests := []struct {
+		name    string
+		query   Query
+		wantErr bool
+	}{
+		{name: "valid reservation inventory", query: base(QueryTypeReservationInventory)},
+		{name: "valid savings plans inventory", query: base(QueryTypeSavingsPlansInventory)},
+		{
+			name: "reservation inventory rejects a filter",
+			query: func() Query {
+				q := base(QueryTypeReservationInventory)
+				q.Filter = QueryFilter{Service: "Amazon Elastic Compute Cloud - Compute"}
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "savings plans inventory rejects group-by",
+			query: func() Query {
+				q := base(QueryTypeSavingsPlansInventory)
+				q.GroupBy = []string{"SERVICE"}
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "reservation inventory rejects top N",
+			query: func() Query {
+				q := base(QueryTypeReservationInventory)
+				q.TopN = 5
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "reservation inventory rejects group by subscription",
+			query: func() Query {
+				q := base(QueryTypeReservationInventory)
+				q.GroupBySubscription = true
+				return q
+			}(),
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.query.Validate()
+			if (err != nil) != test.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestIsInventoryQuery(t *testing.T) {
+	for _, queryType := range []string{QueryTypeReservationInventory, QueryTypeSavingsPlansInventory} {
+		if !(Query{QueryType: queryType}).IsInventoryQuery() {
+			t.Fatalf("IsInventoryQuery() = false for %q, want true", queryType)
+		}
+	}
+	for _, queryType := range []string{QueryTypeCostAndUsage, QueryTypeReservationUtilization, QueryTypeSavingsPlansUtilization, ""} {
+		if (Query{QueryType: queryType}).IsInventoryQuery() {
+			t.Fatalf("IsInventoryQuery() = true for %q, want false", queryType)
+		}
+	}
+}
+
 func TestLegacyQueryJSONAppliesCompatibleDefaults(t *testing.T) {
 	var query Query
 	err := json.Unmarshal([]byte(`{
@@ -113,6 +430,9 @@ func TestLegacyQueryJSONAppliesCompatibleDefaults(t *testing.T) {
 
 	query.ApplyDefaults()
 
+	if query.QueryType != QueryTypeCostAndUsage {
+		t.Fatalf("queryType = %q, want %q for a query saved before this field existed", query.QueryType, QueryTypeCostAndUsage)
+	}
 	if query.IncludeIncompletePeriod != DefaultIncludeIncompletePeriod {
 		t.Fatalf("includeIncompletePeriod = %v, want %v", query.IncludeIncompletePeriod, DefaultIncludeIncompletePeriod)
 	}

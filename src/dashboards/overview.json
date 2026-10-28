@@ -809,6 +809,388 @@
       ],
       "title": "Monthly amortized cost",
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "${DS_AWS_COST_EXPLORER}"
+      },
+      "description": "RDS Reservation utilization (am I wasting what I bought?) plotted against coverage (could I be buying more?) over the selected range. Utilization near 100% with coverage well below it means your existing reservations are fully used and there's room to buy more and save further. Duplicate this panel and change both targets' AWS service field to see EC2, ElastiCache, or Redshift instead. Needs the optional ce:GetReservationUtilization/ce:GetReservationCoverage IAM permissions.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 1,
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Utilization %"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Coverage %"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "queryType": "reservationUtilization",
+          "granularity": "DAILY",
+          "format": "timeSeries",
+          "filter": {
+            "service": "Amazon Relational Database Service"
+          },
+          "utilizationMetric": "UtilizationPercentage",
+          "refId": "A",
+          "version": 1,
+          "alignMonthlyToCalendar": true,
+          "includeIncompletePeriod": false,
+          "rangeMode": "dashboard"
+        },
+        {
+          "queryType": "reservationCoverage",
+          "granularity": "DAILY",
+          "format": "timeSeries",
+          "filter": {
+            "service": "Amazon Relational Database Service"
+          },
+          "utilizationMetric": "CoverageHoursPercentage",
+          "refId": "B",
+          "version": 1,
+          "alignMonthlyToCalendar": true,
+          "includeIncompletePeriod": false,
+          "rangeMode": "dashboard"
+        }
+      ],
+      "title": "Reservation utilization vs coverage % (RDS)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "${DS_AWS_COST_EXPLORER}"
+      },
+      "description": "Savings Plans utilization (am I wasting what I bought?) plotted against coverage (could I be buying more?) over the selected range. Utilization near 100% with coverage well below it means your existing commitment is fully used and there's room to buy more and save further. Needs the optional ce:GetSavingsPlansUtilization/ce:GetSavingsPlansCoverage IAM permissions.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 1,
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Utilization %"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Coverage %"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "queryType": "savingsPlansUtilization",
+          "granularity": "DAILY",
+          "format": "timeSeries",
+          "filter": {},
+          "utilizationMetric": "UtilizationPercentage",
+          "refId": "A",
+          "version": 1,
+          "alignMonthlyToCalendar": true,
+          "includeIncompletePeriod": false,
+          "rangeMode": "dashboard"
+        },
+        {
+          "queryType": "savingsPlansCoverage",
+          "granularity": "DAILY",
+          "format": "timeSeries",
+          "filter": {},
+          "utilizationMetric": "CoveragePercentage",
+          "refId": "B",
+          "version": 1,
+          "alignMonthlyToCalendar": true,
+          "includeIncompletePeriod": false,
+          "rangeMode": "dashboard"
+        }
+      ],
+      "title": "Savings Plans utilization vs coverage %",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "${DS_AWS_COST_EXPLORER}"
+      },
+      "description": "Every Reservation this account owns across EC2, RDS, ElastiCache, Redshift, and OpenSearch, sorted by days until expiry. This reflects current state, not the dashboard's selected time range. Each service's permission is optional and independent: a service without its Describe permission is silently excluded, and a service that fails for another reason is excluded with a warning notice rather than failing the whole panel. Needs the optional ec2:DescribeReservedInstances, rds:DescribeReservedDBInstances, elasticache:DescribeReservedCacheNodes, redshift:DescribeReservedNodes, and es:DescribeReservedInstances IAM permissions.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 43
+      },
+      "id": 11,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "queryType": "reservationInventory",
+          "refId": "A",
+          "version": 1
+        }
+      ],
+      "title": "Reservations",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "fieldName": "State",
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "retired"
+                  }
+                }
+              }
+            ],
+            "type": "exclude",
+            "match": "any"
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "ivlabsdev-awscostexplorer-datasource",
+        "uid": "${DS_AWS_COST_EXPLORER}"
+      },
+      "description": "Every Savings Plan this account owns, sorted by days until expiry. This reflects current state, not the dashboard's selected time range. Needs the optional savingsplans:DescribeSavingsPlans IAM permission; without it this panel shows an error.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 43
+      },
+      "id": 12,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "queryType": "savingsPlansInventory",
+          "refId": "A",
+          "version": 1
+        }
+      ],
+      "title": "Savings Plans",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "fieldName": "State",
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "retired"
+                  }
+                }
+              }
+            ],
+            "type": "exclude",
+            "match": "any"
+          }
+        }
+      ]
     }
   ],
   "refresh": "",
@@ -823,5 +1205,5 @@
   },
   "timezone": "browser",
   "title": "AWS Cost Explorer overview",
-  "version": 1
+  "version": 3
 }

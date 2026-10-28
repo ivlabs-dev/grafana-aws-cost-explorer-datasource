@@ -19,6 +19,65 @@ export type ResultFormat = 'timeSeries' | 'table';
 // service KPI. The visual query editor intentionally offers only 0/5/10/20.
 export type TopN = 0 | 1 | 5 | 10 | 20;
 export type QueryRangeMode = 'dashboard' | 'monthToDate' | 'previousEquivalentPeriod';
+export type QueryType =
+  | 'costAndUsage'
+  | 'reservationUtilization'
+  | 'savingsPlansUtilization'
+  | 'reservationInventory'
+  | 'savingsPlansInventory'
+  | 'reservationCoverage'
+  | 'savingsPlansCoverage';
+
+// The only SERVICE filter values AWS accepts for GetReservationUtilization
+// (one per request). AWS silently assumes the first value here if this
+// filter is left unset, which can hide real reservations in another one of
+// these services -- keep in sync with pkg/models/query.go's
+// ReservationEligibleServices.
+export type ReservationEligibleService =
+  | 'Amazon Elastic Compute Cloud - Compute'
+  | 'Amazon Relational Database Service'
+  | 'Amazon ElastiCache'
+  | 'Amazon Redshift'
+  | 'Amazon Elasticsearch Service';
+
+// The SERVICE filter values AWS documents for GetReservationCoverage --
+// deliberately a narrower list than ReservationEligibleService: AWS's own
+// Coverage documentation doesn't mention OpenSearch/Elasticsearch at all.
+// Keep in sync with pkg/models/query.go's ReservationCoverageEligibleServices.
+export type ReservationCoverageEligibleService =
+  | 'Amazon Elastic Compute Cloud - Compute'
+  | 'Amazon Relational Database Service'
+  | 'Amazon ElastiCache'
+  | 'Amazon Redshift';
+
+// Curated subsets of AWS's Reservation/Savings Plans utilization fields this
+// plugin exposes as a selectable time-series metric or table column. Keep in
+// sync with pkg/models/query.go's ReservationUtilizationMetrics /
+// SavingsPlansUtilizationMetrics.
+export type ReservationUtilizationMetric =
+  | 'UtilizationPercentage'
+  | 'NetRISavings'
+  | 'OnDemandCostOfRIHoursUsed'
+  | 'TotalAmortizedFee'
+  | 'UnusedHours'
+  | 'RealizedSavings'
+  | 'UnrealizedSavings';
+export type SavingsPlansUtilizationMetric =
+  | 'UtilizationPercentage'
+  | 'UsedCommitment'
+  | 'UnusedCommitment'
+  | 'TotalCommitment'
+  | 'NetSavings'
+  | 'OnDemandCostEquivalent'
+  | 'TotalAmortizedCommitment';
+
+// Curated subsets of AWS's Reservation/Savings Plans coverage fields this
+// plugin exposes. Keep in sync with pkg/models/query.go's
+// ReservationCoverageMetrics / SavingsPlansCoverageMetrics.
+export type ReservationCoverageMetric =
+  'CoverageHoursPercentage' | 'OnDemandHours' | 'ReservedHours' | 'TotalRunningHours' | 'OnDemandCost';
+export type SavingsPlansCoverageMetric =
+  'CoveragePercentage' | 'SpendCoveredBySavingsPlans' | 'OnDemandCost' | 'TotalCost';
 
 export interface CostFilter {
   service?: string;
@@ -30,6 +89,7 @@ export interface CostFilter {
 
 export interface CostQuery extends DataQuery {
   version: 1;
+  queryType: QueryType;
   metric: CostMetric;
   granularity: Granularity;
   groupBy: GroupBy[];
@@ -40,11 +100,18 @@ export interface CostQuery extends DataQuery {
   includeOther: boolean;
   alignMonthlyToCalendar: boolean;
   rangeMode: QueryRangeMode;
+  groupBySubscription: boolean;
+  utilizationMetric:
+    | ReservationUtilizationMetric
+    | SavingsPlansUtilizationMetric
+    | ReservationCoverageMetric
+    | SavingsPlansCoverageMetric;
 }
 
 export const DEFAULT_QUERY: CostQuery = {
   refId: 'A',
   version: 1,
+  queryType: 'costAndUsage',
   metric: 'UnblendedCost',
   granularity: 'DAILY',
   groupBy: [],
@@ -55,6 +122,8 @@ export const DEFAULT_QUERY: CostQuery = {
   includeOther: true,
   alignMonthlyToCalendar: true,
   rangeMode: 'dashboard',
+  groupBySubscription: false,
+  utilizationMetric: 'UtilizationPercentage',
 };
 
 export function normalizeQuery(query: CostQuery): CostQuery {

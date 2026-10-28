@@ -7,18 +7,28 @@ API requests.
 This independent open-source backend data-source plugin supports encrypted
 static credentials and AssumeRole with explicit source credentials. It queries
 `GetCostAndUsage`, follows AWS pagination, and returns native Grafana
-time-series or table data frames.
+time-series or table data frames. Reservation and Savings Plans utilization,
+coverage, and inventory are also available as separate query types.
 
 ## Highlights
 
 - visual metric, daily/monthly granularity, grouping, filtering, and format
   controls
 - up to two Cost Explorer grouping dimensions
-- AWS service, linked account, region, and cost allocation tag filters
+- AWS service, linked account, region, and cost allocation tag filters, with
+  autocomplete suggestions from live AWS data where permitted
+- Reservation and Savings Plans utilization query types, with a curated
+  metric set in table and time-series form
+- Reservation and Savings Plans coverage query types -- how much of your
+  eligible usage is covered by what you bought, as opposed to Utilization's
+  how much of what you bought you're using
+- Reservation and Savings Plans inventory query types listing what you
+  currently own, each with a computed days-until-expiry column
 - bounded 15-minute TTL/LRU cache by default
 - one AWS API call for identical concurrent cache misses
 - no AWS secrets returned to the browser or logged
-- least-privilege target policy: `ce:GetCostAndUsage`
+- least-privilege target policy: `ce:GetCostAndUsage`, plus optional actions
+  for autocomplete, utilization, coverage, and inventory queries
 
 ## Configuration
 
@@ -45,7 +55,10 @@ The final AWS identity needs:
 
 The plugin requires no AWS write access. AWS Cost Explorer requests can incur
 AWS charges, so successful responses are cached and identical in-flight
-requests are deduplicated.
+requests are deduplicated. Autocomplete, utilization, coverage, and
+inventory each need their own additional, optional action to show
+data — see the full and scoped IAM policy files in the GitHub repository's
+`docs/` directory.
 
 ## Documentation
 

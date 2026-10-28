@@ -12,12 +12,19 @@ import (
 // series use this UTC timestamp directly; Grafana applies display timezone
 // settings when rendering it.
 func BillingPeriodStartUTC(period types.ResultByTime) (time.Time, error) {
-	if period.TimePeriod == nil || period.TimePeriod.Start == nil {
+	return dateIntervalStartUTC(period.TimePeriod)
+}
+
+// dateIntervalStartUTC is the shared parser behind BillingPeriodStartUTC; the
+// Reservation/Savings Plans utilization responses carry a *types.DateInterval
+// directly rather than wrapping it in types.ResultByTime.
+func dateIntervalStartUTC(interval *types.DateInterval) (time.Time, error) {
+	if interval == nil || interval.Start == nil {
 		return time.Time{}, fmt.Errorf("response time period from AWS Cost Explorer is missing a start date")
 	}
-	value, err := time.Parse(time.DateOnly, *period.TimePeriod.Start)
+	value, err := time.Parse(time.DateOnly, *interval.Start)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("parse Cost Explorer period start %q: %w", *period.TimePeriod.Start, err)
+		return time.Time{}, fmt.Errorf("parse Cost Explorer period start %q: %w", *interval.Start, err)
 	}
 	return value.UTC(), nil
 }

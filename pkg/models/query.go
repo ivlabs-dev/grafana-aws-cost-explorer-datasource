@@ -23,7 +23,98 @@ const (
 	DefaultTopN                    = 0
 	DefaultIncludeOther            = true
 	DefaultAlignMonthlyToCalendar  = true
+
+	QueryTypeCostAndUsage            = "costAndUsage"
+	QueryTypeReservationUtilization  = "reservationUtilization"
+	QueryTypeSavingsPlansUtilization = "savingsPlansUtilization"
+	QueryTypeReservationInventory    = "reservationInventory"
+	QueryTypeSavingsPlansInventory   = "savingsPlansInventory"
+	QueryTypeReservationCoverage     = "reservationCoverage"
+	QueryTypeSavingsPlansCoverage    = "savingsPlansCoverage"
+
+	DefaultUtilizationMetric = "UtilizationPercentage"
+
+	// DefaultReservationService matches AWS's own undocumented-in-the-UI
+	// default: GetReservationUtilization silently assumes EC2 when the
+	// SERVICE filter is omitted. This plugin makes that default explicit
+	// and visible instead of leaving it silent.
+	DefaultReservationService = "Amazon Elastic Compute Cloud - Compute"
 )
+
+// ReservationEligibleServices are the only SERVICE filter values AWS accepts
+// for GetReservationUtilization (one per request, not combinable). Leaving
+// this filter empty doesn't mean "all reservations" -- AWS silently
+// interprets it as DefaultReservationService, which can make an account with
+// real, active reservations in another one of these services (RDS being the
+// most common case) look like it has no reservations at all. This plugin
+// requires an explicit choice from this list rather than allowing that trap.
+var ReservationEligibleServices = []string{
+	DefaultReservationService,
+	"Amazon Relational Database Service",
+	"Amazon ElastiCache",
+	"Amazon Redshift",
+	"Amazon Elasticsearch Service",
+}
+
+// ReservationCoverageEligibleServices are the only SERVICE filter values AWS
+// documents for GetReservationCoverage: EC2, RDS, ElastiCache, and
+// Redshift -- deliberately not the same five-service list as
+// ReservationEligibleServices, since AWS's own GetReservationCoverage
+// documentation doesn't mention OpenSearch/Elasticsearch at all. Like
+// Utilization, AWS silently assumes EC2 if this filter is left unset.
+var ReservationCoverageEligibleServices = []string{
+	DefaultReservationService,
+	"Amazon Relational Database Service",
+	"Amazon ElastiCache",
+	"Amazon Redshift",
+}
+
+// ReservationUtilizationMetrics is the curated subset of
+// types.ReservationAggregates fields this plugin exposes as a selectable
+// time-series metric or a table column. AWS returns ~17 fields; this list is
+// an intentional, documented scope boundary rather than the full set.
+var ReservationUtilizationMetrics = []string{
+	"UtilizationPercentage",
+	"NetRISavings",
+	"OnDemandCostOfRIHoursUsed",
+	"TotalAmortizedFee",
+	"UnusedHours",
+	"RealizedSavings",
+	"UnrealizedSavings",
+}
+
+// SavingsPlansUtilizationMetrics is the curated subset of Savings Plans
+// utilization/savings/amortized-commitment fields this plugin exposes.
+var SavingsPlansUtilizationMetrics = []string{
+	"UtilizationPercentage",
+	"UsedCommitment",
+	"UnusedCommitment",
+	"TotalCommitment",
+	"NetSavings",
+	"OnDemandCostEquivalent",
+	"TotalAmortizedCommitment",
+}
+
+// ReservationCoverageMetrics is the curated subset of GetReservationCoverage
+// fields this plugin exposes, spanning both the Hours and Cost measurement
+// groups AWS returns (NormalizedUnits is not exposed -- an intentional,
+// documented scope boundary, consistent with Utilization's curated lists).
+var ReservationCoverageMetrics = []string{
+	"CoverageHoursPercentage",
+	"OnDemandHours",
+	"ReservedHours",
+	"TotalRunningHours",
+	"OnDemandCost",
+}
+
+// SavingsPlansCoverageMetrics is the curated subset of
+// GetSavingsPlansCoverage fields this plugin exposes.
+var SavingsPlansCoverageMetrics = []string{
+	"CoveragePercentage",
+	"SpendCoveredBySavingsPlans",
+	"OnDemandCost",
+	"TotalCost",
+}
 
 var validMetrics = map[string]struct{}{
 	"UnblendedCost":    {},
@@ -45,8 +136,18 @@ var validGroupings = map[string]struct{}{
 	"AVAILABILITY_ZONE": {},
 }
 
+func isEligibleService(service string, eligible []string) bool {
+	for _, candidate := range eligible {
+		if service == candidate {
+			return true
+		}
+	}
+	return false
+}
+
 type Query struct {
 	Version                 int         `json:"version"`
+	QueryType               string      `json:"queryType,omitempty"`
 	Metric                  string      `json:"metric"`
 	Granularity             string      `json:"granularity"`
 	GroupBy                 []string    `json:"groupBy,omitempty"`
@@ -57,6 +158,8 @@ type Query struct {
 	IncludeOther            *bool       `json:"includeOther,omitempty"`
 	AlignMonthlyToCalendar  *bool       `json:"alignMonthlyToCalendar,omitempty"`
 	RangeMode               string      `json:"rangeMode"`
+	GroupBySubscription     bool        `json:"groupBySubscription,omitempty"`
+	UtilizationMetric       string      `json:"utilizationMetric,omitempty"`
 }
 
 type QueryFilter struct {
@@ -75,6 +178,9 @@ type DateRange struct {
 func (q *Query) ApplyDefaults() {
 	if q.Version == 0 {
 		q.Version = QueryVersion
+	}
+	if q.QueryType == "" {
+		q.QueryType = QueryTypeCostAndUsage
 	}
 	if q.Metric == "" {
 		q.Metric = "UnblendedCost"
@@ -97,20 +203,93 @@ func (q *Query) ApplyDefaults() {
 	if q.RangeMode == "" {
 		q.RangeMode = RangeModeDashboard
 	}
+	if q.UtilizationMetric == "" {
+		q.UtilizationMetric = defaultUtilizationMetricFor(q.QueryType)
+	}
+	if (q.QueryType == QueryTypeReservationUtilization || q.QueryType == QueryTypeReservationCoverage) && q.Filter.Service == "" {
+		q.Filter.Service = DefaultReservationService
+	}
+}
+
+// defaultUtilizationMetricFor returns the default selected metric for the
+// four utilization/coverage query types. Coverage's curated lists don't
+// contain "UtilizationPercentage" (DefaultUtilizationMetric) at all -- each
+// API has its own differently-named percentage field -- so a single global
+// default would make a bare/default Coverage query fail validation.
+func defaultUtilizationMetricFor(queryType string) string {
+	switch queryType {
+	case QueryTypeReservationCoverage:
+		return "CoverageHoursPercentage"
+	case QueryTypeSavingsPlansCoverage:
+		return "CoveragePercentage"
+	default:
+		return DefaultUtilizationMetric
+	}
+}
+
+// IsUtilizationQuery reports whether this query targets one of the
+// Reservation/Savings Plans utilization or coverage APIs rather than
+// GetCostAndUsage. Coverage shares the same request/response shape
+// (period-bucketed rows of curated numeric fields, table or time-series
+// presentation) and validation rules as utilization, just against a
+// different pair of AWS APIs and curated metric sets.
+func (q Query) IsUtilizationQuery() bool {
+	switch q.QueryType {
+	case QueryTypeReservationUtilization, QueryTypeSavingsPlansUtilization,
+		QueryTypeReservationCoverage, QueryTypeSavingsPlansCoverage:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsInventoryQuery reports whether this query targets one of the
+// Reservation/Savings Plans inventory list types. Unlike every other query
+// type this plugin supports, these are deliberately not scoped to the
+// dashboard's time range at all -- they report current state ("what do I
+// own right now"), not a historical bucket.
+func (q Query) IsInventoryQuery() bool {
+	switch q.QueryType {
+	case QueryTypeReservationInventory, QueryTypeSavingsPlansInventory:
+		return true
+	default:
+		return false
+	}
 }
 
 func (q Query) Validate() error {
 	if q.Version != QueryVersion {
 		return fmt.Errorf("query model version %d is unsupported; expected version %d", q.Version, QueryVersion)
 	}
-	if _, ok := validMetrics[q.Metric]; !ok {
-		return fmt.Errorf("metric %q is unsupported", q.Metric)
+	switch q.QueryType {
+	case "", QueryTypeCostAndUsage, QueryTypeReservationUtilization, QueryTypeSavingsPlansUtilization,
+		QueryTypeReservationInventory, QueryTypeSavingsPlansInventory,
+		QueryTypeReservationCoverage, QueryTypeSavingsPlansCoverage:
+	default:
+		return fmt.Errorf("query type %q is unsupported", q.QueryType)
 	}
 	if q.Granularity != GranularityDaily && q.Granularity != GranularityMonthly {
 		return fmt.Errorf("granularity must be DAILY or MONTHLY")
 	}
 	if q.Format != FormatTimeSeries && q.Format != FormatTable {
 		return fmt.Errorf("result format must be timeSeries or table")
+	}
+	switch q.RangeMode {
+	case "", RangeModeDashboard, RangeModeMonthToDate, RangeModePreviousEquivalentPeriod:
+	default:
+		return fmt.Errorf("query range mode %q is unsupported", q.RangeMode)
+	}
+
+	if q.IsInventoryQuery() {
+		return q.validateInventory()
+	}
+
+	if q.IsUtilizationQuery() {
+		return q.validateUtilization()
+	}
+
+	if _, ok := validMetrics[q.Metric]; !ok {
+		return fmt.Errorf("metric %q is unsupported", q.Metric)
 	}
 	if len(q.GroupBy) > 2 {
 		return fmt.Errorf("AWS Cost Explorer supports at most two group-by dimensions")
@@ -122,11 +301,6 @@ func (q Query) Validate() error {
 	}
 	if q.TopN > 0 && len(q.GroupBy) == 0 {
 		return fmt.Errorf("top N requires at least one group-by dimension")
-	}
-	switch q.RangeMode {
-	case "", RangeModeDashboard, RangeModeMonthToDate, RangeModePreviousEquivalentPeriod:
-	default:
-		return fmt.Errorf("query range mode %q is unsupported", q.RangeMode)
 	}
 
 	seen := make(map[string]struct{}, len(q.GroupBy))
@@ -146,6 +320,90 @@ func (q Query) Validate() error {
 		return fmt.Errorf("cost allocation tag filtering requires both a tag key and a tag value")
 	}
 
+	return nil
+}
+
+// validateUtilization applies the narrower rules shared by the Reservation/
+// Savings Plans utilization and coverage query types: none of these four
+// AWS APIs support cost allocation tag filtering or grouping, the
+// Savings-Plans-flavored types don't support a SERVICE filter, the
+// Reservation-flavored types require one from the AWS-documented eligible
+// list for that specific API, and the selected metric must be one this
+// plugin actually knows how to render.
+func (q Query) validateUtilization() error {
+	if strings.TrimSpace(q.Filter.TagKey) != "" || strings.TrimSpace(q.Filter.TagValue) != "" {
+		return fmt.Errorf("cost allocation tag filtering is not supported for %q queries", q.QueryType)
+	}
+
+	var allowedMetrics []string
+	switch q.QueryType {
+	case QueryTypeReservationUtilization:
+		if !isEligibleService(q.Filter.Service, ReservationEligibleServices) {
+			return fmt.Errorf(
+				"AWS service %q is not valid for Reservation utilization; it must be one of %v "+
+					"(AWS silently assumes EC2 if left unset, which can hide real reservations in another service)",
+				q.Filter.Service, ReservationEligibleServices,
+			)
+		}
+		allowedMetrics = ReservationUtilizationMetrics
+	case QueryTypeSavingsPlansUtilization:
+		if strings.TrimSpace(q.Filter.Service) != "" {
+			return fmt.Errorf("the service filter is not supported for Savings Plans utilization queries")
+		}
+		if q.GroupBySubscription {
+			return fmt.Errorf("grouping by subscription is not supported for Savings Plans utilization queries")
+		}
+		allowedMetrics = SavingsPlansUtilizationMetrics
+	case QueryTypeReservationCoverage:
+		if !isEligibleService(q.Filter.Service, ReservationCoverageEligibleServices) {
+			return fmt.Errorf(
+				"AWS service %q is not valid for Reservation coverage; it must be one of %v "+
+					"(AWS silently assumes EC2 if left unset, which can hide real reservations in another service)",
+				q.Filter.Service, ReservationCoverageEligibleServices,
+			)
+		}
+		if q.GroupBySubscription {
+			return fmt.Errorf("grouping by subscription is not supported for Reservation coverage queries")
+		}
+		allowedMetrics = ReservationCoverageMetrics
+	case QueryTypeSavingsPlansCoverage:
+		if strings.TrimSpace(q.Filter.Service) != "" {
+			return fmt.Errorf("the service filter is not supported for Savings Plans coverage queries")
+		}
+		if q.GroupBySubscription {
+			return fmt.Errorf("grouping by subscription is not supported for Savings Plans coverage queries")
+		}
+		allowedMetrics = SavingsPlansCoverageMetrics
+	}
+
+	for _, metric := range allowedMetrics {
+		if metric == q.UtilizationMetric {
+			return nil
+		}
+	}
+	return fmt.Errorf("utilization metric %q is unsupported for %q queries", q.UtilizationMetric, q.QueryType)
+}
+
+// validateInventory applies the rules for QueryTypeReservationInventory/
+// QueryTypeSavingsPlansInventory: these are snapshot queries ("what do I
+// currently own"), not bucketed by period, so filtering, grouping, top-N,
+// and the utilization metric selector don't apply. Rejecting a non-default
+// value here (rather than silently ignoring it) catches a query carried
+// over from another type by mistake, such as reusing a Reservation
+// utilization query's AWS service filter.
+func (q Query) validateInventory() error {
+	if q.Filter != (QueryFilter{}) {
+		return fmt.Errorf("filtering is not supported for %q queries", q.QueryType)
+	}
+	if len(q.GroupBy) > 0 {
+		return fmt.Errorf("grouping is not supported for %q queries", q.QueryType)
+	}
+	if q.TopN != 0 {
+		return fmt.Errorf("top N is not supported for %q queries", q.QueryType)
+	}
+	if q.GroupBySubscription {
+		return fmt.Errorf("grouping by subscription is not supported for %q queries", q.QueryType)
+	}
 	return nil
 }
 

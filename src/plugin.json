@@ -30,6 +30,10 @@
         "path": "img/aws-cost-explorer-dashboard.png"
       },
       {
+        "name": "Reservation and Savings Plans utilization, coverage, and inventory",
+        "path": "img/aws-cost-explorer-reservations-savings-plans.png"
+      },
+      {
         "name": "Visual query editor",
         "path": "img/aws-cost-explorer-query-editor.png"
       },

@@ -61,6 +61,38 @@ func (c *dashboardLifecycleClient) GetTags(
 	return &awscostexplorer.GetTagsOutput{}, nil
 }
 
+func (c *dashboardLifecycleClient) GetReservationUtilization(
+	context.Context,
+	*awscostexplorer.GetReservationUtilizationInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetReservationUtilizationOutput, error) {
+	return &awscostexplorer.GetReservationUtilizationOutput{}, nil
+}
+
+func (c *dashboardLifecycleClient) GetSavingsPlansUtilization(
+	context.Context,
+	*awscostexplorer.GetSavingsPlansUtilizationInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetSavingsPlansUtilizationOutput, error) {
+	return &awscostexplorer.GetSavingsPlansUtilizationOutput{}, nil
+}
+
+func (c *dashboardLifecycleClient) GetReservationCoverage(
+	context.Context,
+	*awscostexplorer.GetReservationCoverageInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetReservationCoverageOutput, error) {
+	return &awscostexplorer.GetReservationCoverageOutput{}, nil
+}
+
+func (c *dashboardLifecycleClient) GetSavingsPlansCoverage(
+	context.Context,
+	*awscostexplorer.GetSavingsPlansCoverageInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetSavingsPlansCoverageOutput, error) {
+	return &awscostexplorer.GetSavingsPlansCoverageOutput{}, nil
+}
+
 func TestDashboardQueryLifecycleReusesAWSResponseAcrossPresentations(t *testing.T) {
 	client := &dashboardLifecycleClient{}
 	datasource := newDatasource(
