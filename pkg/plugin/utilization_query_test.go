@@ -48,6 +48,32 @@ func (utilizationClient) GetSavingsPlansUtilization(
 	}, nil
 }
 
+func (utilizationClient) GetReservationCoverage(
+	_ context.Context,
+	_ *awscostexplorer.GetReservationCoverageInput,
+	_ ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetReservationCoverageOutput, error) {
+	return &awscostexplorer.GetReservationCoverageOutput{
+		CoveragesByTime: []types.CoverageByTime{{
+			TimePeriod: &types.DateInterval{Start: aws.String("2026-07-01")},
+			Total:      &types.Coverage{CoverageHours: &types.CoverageHours{CoverageHoursPercentage: aws.String("40%")}},
+		}},
+	}, nil
+}
+
+func (utilizationClient) GetSavingsPlansCoverage(
+	_ context.Context,
+	_ *awscostexplorer.GetSavingsPlansCoverageInput,
+	_ ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetSavingsPlansCoverageOutput, error) {
+	return &awscostexplorer.GetSavingsPlansCoverageOutput{
+		SavingsPlansCoverages: []types.SavingsPlansCoverage{{
+			TimePeriod: &types.DateInterval{Start: aws.String("2026-07-01")},
+			Coverage:   &types.SavingsPlansCoverageData{CoveragePercentage: aws.String("52%")},
+		}},
+	}, nil
+}
+
 func utilizationQueryRequest(queryType string) *backend.QueryDataRequest {
 	queryJSON, _ := json.Marshal(models.Query{
 		Version:     models.QueryVersion,
@@ -112,6 +138,60 @@ func TestQueryDataReservationUtilizationSurfacesAWSError(t *testing.T) {
 	)
 
 	response, err := datasource.QueryData(context.Background(), utilizationQueryRequest(models.QueryTypeReservationUtilization))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := response.Responses["A"]
+	if got.Error == nil {
+		t.Fatal("expected an error response")
+	}
+}
+
+func TestQueryDataReservationCoverage(t *testing.T) {
+	datasource := newDatasource(
+		context.Background(),
+		validInstanceSettings(),
+		fakeFactory{client: utilizationClient{}},
+		log.NewNullLogger(),
+	)
+
+	response, err := datasource.QueryData(context.Background(), utilizationQueryRequest(models.QueryTypeReservationCoverage))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := response.Responses["A"]
+	if got.Error != nil || len(got.Frames) != 1 || got.Frames[0].RefID != "A" {
+		t.Fatalf("unexpected query response: %+v", got)
+	}
+}
+
+func TestQueryDataSavingsPlansCoverage(t *testing.T) {
+	datasource := newDatasource(
+		context.Background(),
+		validInstanceSettings(),
+		fakeFactory{client: utilizationClient{}},
+		log.NewNullLogger(),
+	)
+
+	response, err := datasource.QueryData(context.Background(), utilizationQueryRequest(models.QueryTypeSavingsPlansCoverage))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := response.Responses["A"]
+	if got.Error != nil || len(got.Frames) != 1 || got.Frames[0].RefID != "A" {
+		t.Fatalf("unexpected query response: %+v", got)
+	}
+}
+
+func TestQueryDataReservationCoverageSurfacesAWSError(t *testing.T) {
+	datasource := newDatasource(
+		context.Background(),
+		validInstanceSettings(),
+		fakeFactory{client: errorClient{err: fmt.Errorf("boom")}},
+		log.NewNullLogger(),
+	)
+
+	response, err := datasource.QueryData(context.Background(), utilizationQueryRequest(models.QueryTypeReservationCoverage))
 	if err != nil {
 		t.Fatal(err)
 	}

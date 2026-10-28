@@ -22,11 +22,24 @@ import (
 type fakeFactory struct {
 	client     awsclient.CostExplorerAPI
 	resolveErr error
+
+	savingsPlans            awsclient.SavingsPlansAPI
+	ec2Reservations         awsclient.EC2ReservedInstancesAPI
+	rdsReservations         awsclient.RDSReservedInstancesAPI
+	elastiCacheReservations awsclient.ElastiCacheReservedNodesAPI
+	redshiftReservations    awsclient.RedshiftReservedNodesAPI
+	openSearchReservations  awsclient.OpenSearchReservedInstancesAPI
 }
 
 func (f fakeFactory) New(context.Context, models.PluginSettings) (*awsclient.Bundle, error) {
 	return &awsclient.Bundle{
-		CostExplorer: f.client,
+		CostExplorer:            f.client,
+		SavingsPlans:            f.savingsPlans,
+		EC2Reservations:         f.ec2Reservations,
+		RDSReservations:         f.rdsReservations,
+		ElastiCacheReservations: f.elastiCacheReservations,
+		RedshiftReservations:    f.redshiftReservations,
+		OpenSearchReservations:  f.openSearchReservations,
 		ResolveCredentials: func(context.Context) error {
 			return f.resolveErr
 		},
@@ -82,6 +95,22 @@ func (fakeClient) GetSavingsPlansUtilization(
 	return &awscostexplorer.GetSavingsPlansUtilizationOutput{}, nil
 }
 
+func (fakeClient) GetReservationCoverage(
+	context.Context,
+	*awscostexplorer.GetReservationCoverageInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetReservationCoverageOutput, error) {
+	return &awscostexplorer.GetReservationCoverageOutput{}, nil
+}
+
+func (fakeClient) GetSavingsPlansCoverage(
+	context.Context,
+	*awscostexplorer.GetSavingsPlansCoverageInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetSavingsPlansCoverageOutput, error) {
+	return &awscostexplorer.GetSavingsPlansCoverageOutput{}, nil
+}
+
 type countingClient struct {
 	calls int
 }
@@ -125,6 +154,22 @@ func (c *countingClient) GetSavingsPlansUtilization(
 	options ...func(*awscostexplorer.Options),
 ) (*awscostexplorer.GetSavingsPlansUtilizationOutput, error) {
 	return fakeClient{}.GetSavingsPlansUtilization(ctx, input, options...)
+}
+
+func (c *countingClient) GetReservationCoverage(
+	ctx context.Context,
+	input *awscostexplorer.GetReservationCoverageInput,
+	options ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetReservationCoverageOutput, error) {
+	return fakeClient{}.GetReservationCoverage(ctx, input, options...)
+}
+
+func (c *countingClient) GetSavingsPlansCoverage(
+	ctx context.Context,
+	input *awscostexplorer.GetSavingsPlansCoverageInput,
+	options ...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetSavingsPlansCoverageOutput, error) {
+	return fakeClient{}.GetSavingsPlansCoverage(ctx, input, options...)
 }
 
 func TestQueryDataReturnsFrame(t *testing.T) {
@@ -484,6 +529,22 @@ func (c errorClient) GetSavingsPlansUtilization(
 	*awscostexplorer.GetSavingsPlansUtilizationInput,
 	...func(*awscostexplorer.Options),
 ) (*awscostexplorer.GetSavingsPlansUtilizationOutput, error) {
+	return nil, c.err
+}
+
+func (c errorClient) GetReservationCoverage(
+	context.Context,
+	*awscostexplorer.GetReservationCoverageInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetReservationCoverageOutput, error) {
+	return nil, c.err
+}
+
+func (c errorClient) GetSavingsPlansCoverage(
+	context.Context,
+	*awscostexplorer.GetSavingsPlansCoverageInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetSavingsPlansCoverageOutput, error) {
 	return nil, c.err
 }
 

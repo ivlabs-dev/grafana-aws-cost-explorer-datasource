@@ -9,6 +9,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/costexplorer"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	"github.com/aws/aws-sdk-go-v2/service/opensearch"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	"github.com/aws/aws-sdk-go-v2/service/savingsplans"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/models"
 )
@@ -22,11 +28,19 @@ type CostExplorerAPI interface {
 	GetTags(context.Context, *costexplorer.GetTagsInput, ...func(*costexplorer.Options)) (*costexplorer.GetTagsOutput, error)
 	GetReservationUtilization(context.Context, *costexplorer.GetReservationUtilizationInput, ...func(*costexplorer.Options)) (*costexplorer.GetReservationUtilizationOutput, error)
 	GetSavingsPlansUtilization(context.Context, *costexplorer.GetSavingsPlansUtilizationInput, ...func(*costexplorer.Options)) (*costexplorer.GetSavingsPlansUtilizationOutput, error)
+	GetReservationCoverage(context.Context, *costexplorer.GetReservationCoverageInput, ...func(*costexplorer.Options)) (*costexplorer.GetReservationCoverageOutput, error)
+	GetSavingsPlansCoverage(context.Context, *costexplorer.GetSavingsPlansCoverageInput, ...func(*costexplorer.Options)) (*costexplorer.GetSavingsPlansCoverageOutput, error)
 }
 
 type Bundle struct {
-	CostExplorer       CostExplorerAPI
-	ResolveCredentials func(context.Context) error
+	CostExplorer            CostExplorerAPI
+	SavingsPlans            SavingsPlansAPI
+	EC2Reservations         EC2ReservedInstancesAPI
+	RDSReservations         RDSReservedInstancesAPI
+	ElastiCacheReservations ElastiCacheReservedNodesAPI
+	RedshiftReservations    RedshiftReservedNodesAPI
+	OpenSearchReservations  OpenSearchReservedInstancesAPI
+	ResolveCredentials      func(context.Context) error
 }
 
 type Factory interface {
@@ -79,7 +93,13 @@ func (f *SDKFactory) New(ctx context.Context, settings models.PluginSettings) (*
 	}
 
 	return &Bundle{
-		CostExplorer: costexplorer.NewFromConfig(awsConfig),
+		CostExplorer:            costexplorer.NewFromConfig(awsConfig),
+		SavingsPlans:            savingsplans.NewFromConfig(awsConfig),
+		EC2Reservations:         ec2.NewFromConfig(awsConfig),
+		RDSReservations:         rds.NewFromConfig(awsConfig),
+		ElastiCacheReservations: elasticache.NewFromConfig(awsConfig),
+		RedshiftReservations:    redshift.NewFromConfig(awsConfig),
+		OpenSearchReservations:  opensearch.NewFromConfig(awsConfig),
 		ResolveCredentials: func(resolveContext context.Context) error {
 			if _, resolveErr := awsConfig.Credentials.Retrieve(resolveContext); resolveErr != nil {
 				return fmt.Errorf("resolve AWS credentials: %w", resolveErr)

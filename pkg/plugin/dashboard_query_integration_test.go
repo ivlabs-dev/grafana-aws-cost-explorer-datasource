@@ -77,6 +77,22 @@ func (c *dashboardLifecycleClient) GetSavingsPlansUtilization(
 	return &awscostexplorer.GetSavingsPlansUtilizationOutput{}, nil
 }
 
+func (c *dashboardLifecycleClient) GetReservationCoverage(
+	context.Context,
+	*awscostexplorer.GetReservationCoverageInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetReservationCoverageOutput, error) {
+	return &awscostexplorer.GetReservationCoverageOutput{}, nil
+}
+
+func (c *dashboardLifecycleClient) GetSavingsPlansCoverage(
+	context.Context,
+	*awscostexplorer.GetSavingsPlansCoverageInput,
+	...func(*awscostexplorer.Options),
+) (*awscostexplorer.GetSavingsPlansCoverageOutput, error) {
+	return &awscostexplorer.GetSavingsPlansCoverageOutput{}, nil
+}
+
 func TestDashboardQueryLifecycleReusesAWSResponseAcrossPresentations(t *testing.T) {
 	client := &dashboardLifecycleClient{}
 	datasource := newDatasource(

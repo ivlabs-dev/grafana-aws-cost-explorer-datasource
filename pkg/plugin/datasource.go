@@ -17,6 +17,7 @@ import (
 	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/cache"
 	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/costexplorer"
 	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/frames"
+	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/inventory"
 	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/models"
 )
 
@@ -40,6 +41,7 @@ var (
 type Datasource struct {
 	settings           models.PluginSettings
 	service            *costexplorer.Service
+	inventoryService   *inventory.Service
 	resolveCredentials func(context.Context) error
 	initializationErr  error
 	logger             log.Logger
@@ -93,8 +95,22 @@ func newDatasource(
 		datasource.initializationErr = err
 		return datasource
 	}
+	inventoryService, err := inventory.NewService(
+		bundle.SavingsPlans,
+		bundle.EC2Reservations,
+		bundle.RDSReservations,
+		bundle.ElastiCacheReservations,
+		bundle.RedshiftReservations,
+		bundle.OpenSearchReservations,
+		resultCache,
+	)
+	if err != nil {
+		datasource.initializationErr = err
+		return datasource
+	}
 
 	datasource.service = service
+	datasource.inventoryService = inventoryService
 	datasource.resolveCredentials = bundle.ResolveCredentials
 	return datasource
 }
@@ -129,6 +145,16 @@ func (d *Datasource) query(ctx context.Context, query backend.DataQuery) backend
 		return backend.ErrDataResponse(backend.StatusValidationFailed, err.Error())
 	}
 
+	// Inventory queries report current state ("what do I own right now"),
+	// not a historical bucket, so they skip date-range resolution entirely
+	// rather than just ignoring the result of it.
+	switch model.QueryType {
+	case models.QueryTypeReservationInventory:
+		return d.queryReservationInventory(ctx, query, started, logger)
+	case models.QueryTypeSavingsPlansInventory:
+		return d.querySavingsPlansInventory(ctx, query, started, logger)
+	}
+
 	resolved, err := models.ResolveCostExplorerDateRange(
 		model,
 		query.TimeRange.From,
@@ -144,6 +170,10 @@ func (d *Datasource) query(ctx context.Context, query backend.DataQuery) backend
 		return d.queryReservationUtilization(ctx, query, model, resolved, started, logger)
 	case models.QueryTypeSavingsPlansUtilization:
 		return d.querySavingsPlansUtilization(ctx, query, model, resolved, started, logger)
+	case models.QueryTypeReservationCoverage:
+		return d.queryReservationCoverage(ctx, query, model, resolved, started, logger)
+	case models.QueryTypeSavingsPlansCoverage:
+		return d.querySavingsPlansCoverage(ctx, query, model, resolved, started, logger)
 	default:
 		return d.queryCostAndUsage(ctx, query, model, resolved, started, logger)
 	}
@@ -449,6 +479,304 @@ func (d *Datasource) querySavingsPlansUtilization(
 	return backend.DataResponse{Status: backend.StatusOK, Frames: resultFrames}
 }
 
+func (d *Datasource) queryReservationCoverage(
+	ctx context.Context,
+	query backend.DataQuery,
+	model models.Query,
+	resolved models.ResolvedDateRange,
+	started time.Time,
+	logger log.Logger,
+) backend.DataResponse {
+	if resolved.Empty {
+		resultFrames, convertErr := frames.ConvertReservationCoverage(model, &awscostexplorer.GetReservationCoverageOutput{})
+		if convertErr != nil {
+			return backend.ErrDataResponse(
+				backend.StatusInternal,
+				fmt.Sprintf("create empty AWS Reservation Coverage data frames: %v", convertErr),
+			)
+		}
+		for _, frame := range resultFrames {
+			frame.RefID = query.RefID
+			if frame.Meta == nil {
+				frame.Meta = &data.FrameMeta{}
+			}
+			frame.Meta.Notices = append(frame.Meta.Notices, data.Notice{
+				Severity: data.NoticeSeverityInfo,
+				Text:     models.NoCompletedPeriodsNotice,
+			})
+		}
+
+		completedAt := d.now()
+		metadata := NewQueryExecutionMetadata(
+			&costexplorer.Execution{
+				CacheResult: cache.ResultBypass,
+				CacheTTL:    time.Duration(d.settings.CacheTTLSeconds) * time.Second,
+			},
+			completedAt,
+			completedAt.Sub(started),
+			false,
+		)
+		AttachQueryExecutionMetadata(resultFrames, metadata)
+		fields := append(metadata.LogFields(), "frame_count", len(resultFrames))
+		logger.Info("Reservation Coverage query completed without an AWS request", fields...)
+		return backend.DataResponse{Status: backend.StatusOK, Frames: resultFrames}
+	}
+
+	awsContext, cancel := context.WithTimeout(ctx, awsRequestTimeout)
+	defer cancel()
+
+	execution, err := d.service.ReservationCoverage(awsContext, d.settings, model, resolved.DateRange)
+	if err != nil {
+		failedAt := d.now()
+		metadata := NewQueryExecutionMetadata(
+			reservationCoverageMetadataExecution(execution),
+			failedAt,
+			failedAt.Sub(started),
+			resolved.IncludesIncompletePeriod,
+		)
+		fields := append(metadata.LogFields(), "error_category", "aws_reservation_coverage_request_failed")
+		logger.Error("Reservation Coverage query failed", fields...)
+		status := backend.StatusBadGateway
+		if awsContext.Err() == context.DeadlineExceeded {
+			status = backend.StatusTimeout
+		}
+		errorResponse := backend.ErrDataResponse(status, err.Error())
+		errorFrames, frameErr := frames.ConvertReservationCoverage(model, &awscostexplorer.GetReservationCoverageOutput{})
+		if frameErr == nil {
+			for _, frame := range errorFrames {
+				frame.RefID = query.RefID
+			}
+			AttachQueryExecutionMetadata(errorFrames, metadata)
+			errorResponse.Frames = errorFrames
+		}
+		return errorResponse
+	}
+
+	resultFrames, err := frames.ConvertReservationCoverage(model, execution.Output)
+	if err != nil {
+		logger.Error("data frame conversion failed", "error", err)
+		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("convert AWS response to data frames: %v", err))
+	}
+	for _, frame := range resultFrames {
+		frame.RefID = query.RefID
+	}
+
+	completedAt := d.now()
+	metadata := NewQueryExecutionMetadata(
+		reservationCoverageMetadataExecution(execution),
+		completedAt,
+		completedAt.Sub(started),
+		resolved.IncludesIncompletePeriod,
+	)
+	AttachQueryExecutionMetadata(resultFrames, metadata)
+
+	fields := append(metadata.LogFields(), "frame_count", len(resultFrames))
+	logger.Info("Reservation Coverage query completed", fields...)
+
+	return backend.DataResponse{Status: backend.StatusOK, Frames: resultFrames}
+}
+
+func (d *Datasource) querySavingsPlansCoverage(
+	ctx context.Context,
+	query backend.DataQuery,
+	model models.Query,
+	resolved models.ResolvedDateRange,
+	started time.Time,
+	logger log.Logger,
+) backend.DataResponse {
+	if resolved.Empty {
+		resultFrames, convertErr := frames.ConvertSavingsPlansCoverage(model, &awscostexplorer.GetSavingsPlansCoverageOutput{})
+		if convertErr != nil {
+			return backend.ErrDataResponse(
+				backend.StatusInternal,
+				fmt.Sprintf("create empty AWS Savings Plans Coverage data frames: %v", convertErr),
+			)
+		}
+		for _, frame := range resultFrames {
+			frame.RefID = query.RefID
+			if frame.Meta == nil {
+				frame.Meta = &data.FrameMeta{}
+			}
+			frame.Meta.Notices = append(frame.Meta.Notices, data.Notice{
+				Severity: data.NoticeSeverityInfo,
+				Text:     models.NoCompletedPeriodsNotice,
+			})
+		}
+
+		completedAt := d.now()
+		metadata := NewQueryExecutionMetadata(
+			&costexplorer.Execution{
+				CacheResult: cache.ResultBypass,
+				CacheTTL:    time.Duration(d.settings.CacheTTLSeconds) * time.Second,
+			},
+			completedAt,
+			completedAt.Sub(started),
+			false,
+		)
+		AttachQueryExecutionMetadata(resultFrames, metadata)
+		fields := append(metadata.LogFields(), "frame_count", len(resultFrames))
+		logger.Info("Savings Plans Coverage query completed without an AWS request", fields...)
+		return backend.DataResponse{Status: backend.StatusOK, Frames: resultFrames}
+	}
+
+	awsContext, cancel := context.WithTimeout(ctx, awsRequestTimeout)
+	defer cancel()
+
+	execution, err := d.service.SavingsPlansCoverage(awsContext, d.settings, model, resolved.DateRange)
+	if err != nil {
+		failedAt := d.now()
+		metadata := NewQueryExecutionMetadata(
+			savingsPlansCoverageMetadataExecution(execution),
+			failedAt,
+			failedAt.Sub(started),
+			resolved.IncludesIncompletePeriod,
+		)
+		fields := append(metadata.LogFields(), "error_category", "aws_savings_plans_coverage_request_failed")
+		logger.Error("Savings Plans Coverage query failed", fields...)
+		status := backend.StatusBadGateway
+		if awsContext.Err() == context.DeadlineExceeded {
+			status = backend.StatusTimeout
+		}
+		errorResponse := backend.ErrDataResponse(status, err.Error())
+		errorFrames, frameErr := frames.ConvertSavingsPlansCoverage(model, &awscostexplorer.GetSavingsPlansCoverageOutput{})
+		if frameErr == nil {
+			for _, frame := range errorFrames {
+				frame.RefID = query.RefID
+			}
+			AttachQueryExecutionMetadata(errorFrames, metadata)
+			errorResponse.Frames = errorFrames
+		}
+		return errorResponse
+	}
+
+	resultFrames, err := frames.ConvertSavingsPlansCoverage(model, execution.Output)
+	if err != nil {
+		logger.Error("data frame conversion failed", "error", err)
+		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("convert AWS response to data frames: %v", err))
+	}
+	for _, frame := range resultFrames {
+		frame.RefID = query.RefID
+	}
+
+	completedAt := d.now()
+	metadata := NewQueryExecutionMetadata(
+		savingsPlansCoverageMetadataExecution(execution),
+		completedAt,
+		completedAt.Sub(started),
+		resolved.IncludesIncompletePeriod,
+	)
+	AttachQueryExecutionMetadata(resultFrames, metadata)
+
+	fields := append(metadata.LogFields(), "frame_count", len(resultFrames))
+	logger.Info("Savings Plans Coverage query completed", fields...)
+
+	return backend.DataResponse{Status: backend.StatusOK, Frames: resultFrames}
+}
+
+func (d *Datasource) queryReservationInventory(
+	ctx context.Context,
+	query backend.DataQuery,
+	started time.Time,
+	logger log.Logger,
+) backend.DataResponse {
+	awsContext, cancel := context.WithTimeout(ctx, awsRequestTimeout)
+	defer cancel()
+
+	execution, err := d.inventoryService.Reservations(awsContext, d.settings)
+	completedAt := d.now()
+	metadata := NewQueryExecutionMetadata(
+		reservationInventoryMetadataExecution(execution),
+		completedAt,
+		completedAt.Sub(started),
+		false,
+	)
+	if err != nil {
+		fields := append(metadata.LogFields(), "error_category", "aws_reservation_inventory_request_failed")
+		logger.Error("Reservation inventory query failed", fields...)
+		status := backend.StatusBadGateway
+		if awsContext.Err() == context.DeadlineExceeded {
+			status = backend.StatusTimeout
+		}
+		return backend.ErrDataResponse(status, err.Error())
+	}
+
+	resultFrames := frames.ConvertReservationInventory(execution.Items, execution.Notices)
+	for _, frame := range resultFrames {
+		frame.RefID = query.RefID
+	}
+	AttachQueryExecutionMetadata(resultFrames, metadata)
+
+	fields := append(metadata.LogFields(), "frame_count", len(resultFrames))
+	logger.Info("Reservation inventory query completed", fields...)
+	return backend.DataResponse{Status: backend.StatusOK, Frames: resultFrames}
+}
+
+func (d *Datasource) querySavingsPlansInventory(
+	ctx context.Context,
+	query backend.DataQuery,
+	started time.Time,
+	logger log.Logger,
+) backend.DataResponse {
+	awsContext, cancel := context.WithTimeout(ctx, awsRequestTimeout)
+	defer cancel()
+
+	execution, err := d.inventoryService.SavingsPlans(awsContext, d.settings)
+	completedAt := d.now()
+	metadata := NewQueryExecutionMetadata(
+		savingsPlansInventoryMetadataExecution(execution),
+		completedAt,
+		completedAt.Sub(started),
+		false,
+	)
+	if err != nil {
+		fields := append(metadata.LogFields(), "error_category", "aws_savings_plans_inventory_request_failed")
+		logger.Error("Savings Plans inventory query failed", fields...)
+		status := backend.StatusBadGateway
+		if awsContext.Err() == context.DeadlineExceeded {
+			status = backend.StatusTimeout
+		}
+		return backend.ErrDataResponse(status, err.Error())
+	}
+
+	resultFrames := frames.ConvertSavingsPlansInventory(execution.Plans)
+	for _, frame := range resultFrames {
+		frame.RefID = query.RefID
+	}
+	AttachQueryExecutionMetadata(resultFrames, metadata)
+
+	fields := append(metadata.LogFields(), "frame_count", len(resultFrames))
+	logger.Info("Savings Plans inventory query completed", fields...)
+	return backend.DataResponse{Status: backend.StatusOK, Frames: resultFrames}
+}
+
+// reservationInventoryMetadataExecution and savingsPlansInventoryMetadataExecution
+// adapt the inventory package's Execution shape to the costexplorer.Execution
+// fields NewQueryExecutionMetadata reads, the same technique used for the
+// utilization query types below.
+func reservationInventoryMetadataExecution(execution *inventory.ReservationInventoryExecution) *costexplorer.Execution {
+	if execution == nil {
+		return nil
+	}
+	return &costexplorer.Execution{
+		CacheResult: execution.CacheResult,
+		CacheAge:    execution.CacheAge,
+		CacheTTL:    execution.CacheTTL,
+		AWSDuration: execution.AWSDuration,
+	}
+}
+
+func savingsPlansInventoryMetadataExecution(execution *inventory.SavingsPlansExecution) *costexplorer.Execution {
+	if execution == nil {
+		return nil
+	}
+	return &costexplorer.Execution{
+		CacheResult: execution.CacheResult,
+		CacheAge:    execution.CacheAge,
+		CacheTTL:    execution.CacheTTL,
+		AWSDuration: execution.AWSDuration,
+	}
+}
+
 // reservationUtilizationMetadataExecution and
 // savingsPlansUtilizationMetadataExecution adapt the utilization-specific
 // Execution shapes to the costexplorer.Execution fields NewQueryExecutionMetadata
@@ -474,6 +802,32 @@ func savingsPlansUtilizationMetadataExecution(execution *costexplorer.SavingsPla
 		CacheResult: execution.CacheResult,
 		CacheAge:    execution.CacheAge,
 		CacheTTL:    execution.CacheTTL,
+		AWSDuration: execution.AWSDuration,
+	}
+}
+
+func reservationCoverageMetadataExecution(execution *costexplorer.ReservationCoverageExecution) *costexplorer.Execution {
+	if execution == nil {
+		return nil
+	}
+	return &costexplorer.Execution{
+		CacheResult: execution.CacheResult,
+		CacheAge:    execution.CacheAge,
+		CacheTTL:    execution.CacheTTL,
+		Pages:       execution.Pages,
+		AWSDuration: execution.AWSDuration,
+	}
+}
+
+func savingsPlansCoverageMetadataExecution(execution *costexplorer.SavingsPlansCoverageExecution) *costexplorer.Execution {
+	if execution == nil {
+		return nil
+	}
+	return &costexplorer.Execution{
+		CacheResult: execution.CacheResult,
+		CacheAge:    execution.CacheAge,
+		CacheTTL:    execution.CacheTTL,
+		Pages:       execution.Pages,
 		AWSDuration: execution.AWSDuration,
 	}
 }
