@@ -33,7 +33,7 @@ func (s *Service) fetchRDS(ctx context.Context) ([]ReservedItem, error) {
 		}
 		marker = output.Marker
 	}
-	return nil, fmt.Errorf("RDS reservation inventory exceeded the %d-page safety limit", rdsMaxPages)
+	return nil, fmt.Errorf("%s reservation inventory exceeded the %d-page safety limit", ServiceRDS, rdsMaxPages)
 }
 
 func rdsReservedItem(reservation types.ReservedDBInstance) ReservedItem {

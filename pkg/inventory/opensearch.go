@@ -34,7 +34,7 @@ func (s *Service) fetchOpenSearch(ctx context.Context) ([]ReservedItem, error) {
 		}
 		token = output.NextToken
 	}
-	return nil, fmt.Errorf("OpenSearch reservation inventory exceeded the %d-page safety limit", openSearchMaxPages)
+	return nil, fmt.Errorf("%s reservation inventory exceeded the %d-page safety limit", ServiceOpenSearch, openSearchMaxPages)
 }
 
 func openSearchReservedItem(reservation types.ReservedInstance) ReservedItem {

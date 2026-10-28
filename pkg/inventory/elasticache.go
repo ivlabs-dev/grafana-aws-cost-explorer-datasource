@@ -33,7 +33,7 @@ func (s *Service) fetchElastiCache(ctx context.Context) ([]ReservedItem, error) 
 		}
 		marker = output.Marker
 	}
-	return nil, fmt.Errorf("ElastiCache reservation inventory exceeded the %d-page safety limit", elastiCacheMaxPages)
+	return nil, fmt.Errorf("%s reservation inventory exceeded the %d-page safety limit", ServiceElastiCache, elastiCacheMaxPages)
 }
 
 func elastiCacheReservedItem(reservation types.ReservedCacheNode) ReservedItem {

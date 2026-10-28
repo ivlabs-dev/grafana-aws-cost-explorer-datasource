@@ -33,7 +33,7 @@ func (s *Service) fetchRedshift(ctx context.Context) ([]ReservedItem, error) {
 		}
 		marker = output.Marker
 	}
-	return nil, fmt.Errorf("Redshift reservation inventory exceeded the %d-page safety limit", redshiftMaxPages)
+	return nil, fmt.Errorf("%s reservation inventory exceeded the %d-page safety limit", ServiceRedshift, redshiftMaxPages)
 }
 
 func redshiftReservedItem(reservation types.ReservedNode) ReservedItem {

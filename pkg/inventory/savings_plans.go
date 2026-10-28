@@ -97,7 +97,7 @@ func (s *Service) fetchSavingsPlans(ctx context.Context) ([]SavingsPlan, error) 
 		}
 		token = output.NextToken
 	}
-	return nil, fmt.Errorf("Savings Plans inventory exceeded the %d-page safety limit", savingsPlansMaxPages)
+	return nil, fmt.Errorf("savings plans inventory exceeded the %d-page safety limit", savingsPlansMaxPages)
 }
 
 func toSavingsPlan(plan types.SavingsPlan) SavingsPlan {
