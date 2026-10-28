@@ -238,7 +238,10 @@ describe('QueryEditor', () => {
         queryType: 'reservationUtilization',
         groupBy: [],
         topN: 0,
-        filter: {},
+        // An explicit, visible service default -- matching AWS's own silent
+        // EC2 default -- rather than an empty filter a user could mistake
+        // for "all reservations".
+        filter: { service: 'Amazon Elastic Compute Cloud - Compute' },
         groupBySubscription: false,
         utilizationMetric: 'UtilizationPercentage',
       })
@@ -255,7 +258,7 @@ describe('QueryEditor', () => {
       />
     );
 
-    expect(screen.getByLabelText('AWS service filter')).toBeInTheDocument();
+    expect(screen.getByLabelText('AWS service')).toBeInTheDocument();
     expect(screen.getByLabelText('Group by subscription ID')).toBeInTheDocument();
     expect(screen.getByLabelText('Utilization metric')).toBeInTheDocument();
     expect(screen.queryByLabelText('Metric')).not.toBeInTheDocument();
@@ -263,12 +266,38 @@ describe('QueryEditor', () => {
     expect(screen.queryByLabelText('Cost allocation tag key')).not.toBeInTheDocument();
   });
 
+  it('constrains the Reservation utilization service filter to a fixed, required dropdown', () => {
+    const view = renderEditor({
+      ...DEFAULT_QUERY,
+      queryType: 'reservationUtilization',
+      filter: { service: 'Amazon Elastic Compute Cloud - Compute' },
+    });
+
+    const serviceField = screen.getByLabelText('AWS service') as HTMLSelectElement;
+    expect(serviceField.tagName).toBe('SELECT');
+    expect(serviceField).toHaveValue('Amazon Elastic Compute Cloud - Compute');
+    const optionValues = Array.from(serviceField.options).map((option) => option.value);
+    expect(optionValues).toEqual([
+      'Amazon Elastic Compute Cloud - Compute',
+      'Amazon Relational Database Service',
+      'Amazon ElastiCache',
+      'Amazon Redshift',
+      'Amazon Elasticsearch Service',
+    ]);
+
+    fireEvent.change(serviceField, { target: { value: 'Amazon Relational Database Service' } });
+    expect(view.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filter: expect.objectContaining({ service: 'Amazon Relational Database Service' }) })
+    );
+    expect(view.onRunQuery).toHaveBeenCalled();
+  });
+
   it('hides the service filter and group-by-subscription switch for Savings Plans utilization', () => {
     renderEditor({ ...DEFAULT_QUERY, queryType: 'savingsPlansUtilization' });
 
     expect(screen.getByLabelText('Linked account filter')).toBeInTheDocument();
     expect(screen.getByLabelText('Region filter')).toBeInTheDocument();
-    expect(screen.queryByLabelText('AWS service filter')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('AWS service')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Group by subscription ID')).not.toBeInTheDocument();
   });
 

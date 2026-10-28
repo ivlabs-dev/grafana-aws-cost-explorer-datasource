@@ -16,7 +16,13 @@
   types (`ce:GetReservationUtilization`/`ce:GetSavingsPlansUtilization`,
   both optional and additive), with table and time-series presentation of a
   curated metric set, an optional group-by-subscription-ID toggle for
-  Reservation utilization, and four new bundled dashboard panels.
+  Reservation utilization, and four new bundled dashboard panels. The
+  Reservation utilization AWS service field is a required, fixed dropdown of
+  the five values AWS actually accepts (EC2/RDS/ElastiCache/Redshift/
+  OpenSearch) rather than free text, since AWS silently assumes EC2 if left
+  unset — a real account with only RDS reservations previously looked like
+  it had none at all. An account/period with no eligible usage now shows a
+  normal empty result instead of AWS's `DataUnavailableException` error.
   Reservation/Savings Plans **coverage** is a planned follow-up, not part of
   this change.
 

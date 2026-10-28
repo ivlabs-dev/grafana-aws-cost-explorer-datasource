@@ -767,7 +767,7 @@
         "type": "ivlabsdev-awscostexplorer-datasource",
         "uid": "aws-cost-explorer"
       },
-      "description": "Most recent daily Reservation Utilization percentage for the selected range. Needs the optional ce:GetReservationUtilization IAM permission; without it this panel shows an error.",
+      "description": "Most recent daily Reservation Utilization percentage for EC2 instances, the selected range. AWS reports Reservation utilization one service at a time and silently assumes EC2 if unset -- if you have RDS, ElastiCache, Redshift, or OpenSearch reservations instead, duplicate this panel and change the query editor's AWS service filter. Needs the optional ce:GetReservationUtilization IAM permission; without it this panel shows an error.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -806,7 +806,9 @@
           "queryType": "reservationUtilization",
           "granularity": "DAILY",
           "format": "timeSeries",
-          "filter": {},
+          "filter": {
+            "service": "Amazon Elastic Compute Cloud - Compute"
+          },
           "groupBySubscription": false,
           "utilizationMetric": "UtilizationPercentage",
           "refId": "A",
@@ -816,7 +818,7 @@
           "rangeMode": "dashboard"
         }
       ],
-      "title": "Reservation utilization %",
+      "title": "Reservation utilization % (EC2)",
       "type": "stat"
     },
     {
@@ -880,7 +882,7 @@
         "type": "ivlabsdev-awscostexplorer-datasource",
         "uid": "aws-cost-explorer"
       },
-      "description": "Daily Reservation Utilization detail: utilization %, net RI savings, On-Demand cost of RI hours used, total amortized fee, unused hours, and realized/unrealized savings. Enable 'Group by subscription ID' in the query editor to break this down per subscription instead.",
+      "description": "Daily Reservation Utilization detail for EC2 instances: utilization %, net RI savings, On-Demand cost of RI hours used, total amortized fee, unused hours, and realized/unrealized savings. AWS reports this one service at a time -- duplicate this panel and change the query editor's AWS service filter for RDS, ElastiCache, Redshift, or OpenSearch reservations instead. Enable 'Group by subscription ID' in the query editor to break this down per subscription.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -901,7 +903,9 @@
           "queryType": "reservationUtilization",
           "granularity": "DAILY",
           "format": "table",
-          "filter": {},
+          "filter": {
+            "service": "Amazon Elastic Compute Cloud - Compute"
+          },
           "groupBySubscription": false,
           "refId": "A",
           "version": 1,
@@ -910,7 +914,7 @@
           "rangeMode": "dashboard"
         }
       ],
-      "title": "Reservation utilization detail",
+      "title": "Reservation utilization detail (EC2)",
       "type": "table"
     },
     {
@@ -964,5 +968,5 @@
   "timezone": "browser",
   "title": "AWS Cost Explorer overview",
   "uid": "aws-cost-explorer-overview",
-  "version": 2
+  "version": 3
 }

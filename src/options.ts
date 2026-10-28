@@ -5,6 +5,7 @@ import {
   Granularity,
   GroupBy,
   QueryType,
+  ReservationEligibleService,
   ReservationUtilizationMetric,
   ResultFormat,
   SavingsPlansUtilizationMetric,
@@ -52,6 +53,14 @@ export const TOP_N_OPTIONS: Array<ComboboxOption<TopN>> = [
   { label: 'Top 5', value: 5 },
   { label: 'Top 10', value: 10 },
   { label: 'Top 20', value: 20 },
+];
+
+export const RESERVATION_SERVICE_OPTIONS: Array<ComboboxOption<ReservationEligibleService>> = [
+  { label: 'EC2 (Amazon Elastic Compute Cloud - Compute)', value: 'Amazon Elastic Compute Cloud - Compute' },
+  { label: 'RDS (Amazon Relational Database Service)', value: 'Amazon Relational Database Service' },
+  { label: 'ElastiCache (Amazon ElastiCache)', value: 'Amazon ElastiCache' },
+  { label: 'Redshift (Amazon Redshift)', value: 'Amazon Redshift' },
+  { label: 'OpenSearch (Amazon Elasticsearch Service)', value: 'Amazon Elasticsearch Service' },
 ];
 
 export const QUERY_TYPE_OPTIONS: Array<ComboboxOption<QueryType>> = [

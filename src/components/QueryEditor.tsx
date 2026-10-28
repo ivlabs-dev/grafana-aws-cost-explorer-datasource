@@ -8,6 +8,7 @@ import {
   GROUP_OPTIONS,
   METRIC_OPTIONS,
   QUERY_TYPE_OPTIONS,
+  RESERVATION_SERVICE_OPTIONS,
   RESERVATION_UTILIZATION_METRIC_OPTIONS,
   SAVINGS_PLANS_UTILIZATION_METRIC_OPTIONS,
 } from '../options';
@@ -21,6 +22,7 @@ import {
   GroupBy,
   normalizeQuery,
   QueryType,
+  ReservationEligibleService,
   ReservationUtilizationMetric,
   ResultFormat,
   SavingsPlansUtilizationMetric,
@@ -65,11 +67,14 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
     // Switching query type resets fields that are specific to the previous
     // type, so a stale metric/groupBy/filter/utilization-metric can't
     // silently carry over into a query shape it doesn't apply to.
+    // Reservation utilization gets an explicit, visible service default
+    // (matching AWS's own silent EC2 default) rather than an empty filter --
+    // leaving it empty doesn't mean "all reservations" to AWS.
     update({
       queryType: value,
       groupBy: [],
       topN: 0,
-      filter: {},
+      filter: value === 'reservationUtilization' ? { service: 'Amazon Elastic Compute Cloud - Compute' } : {},
       groupBySubscription: false,
       utilizationMetric: 'UtilizationPercentage',
     });
@@ -255,19 +260,19 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
             <InlineField
               label="AWS service"
               labelWidth={18}
-              tooltip="Cost Explorer SERVICE dimension value. If empty, AWS defaults to Amazon EC2 - Compute. Not supported for Savings Plans utilization."
+              htmlFor="query-filter-reservation-service"
+              required
+              tooltip="AWS only reports Reservation utilization one service at a time, and silently assumes EC2 if this isn't set -- which can make real reservations in another service (RDS being the most common case) look like no reservations at all."
             >
-              <Combobox<string>
-                id="query-filter-service"
-                aria-label="AWS service filter"
-                options={(input) => datasource.getDimensionValues('SERVICE', input).then(toOptions)}
-                value={model.filter.service ?? ''}
-                placeholder="Amazon Elastic Compute Cloud - Compute"
+              <Combobox<ReservationEligibleService>
+                id="query-filter-reservation-service"
+                options={RESERVATION_SERVICE_OPTIONS}
+                value={model.filter.service as ReservationEligibleService}
                 width={48}
-                createCustomValue
-                isClearable
-                onChange={(option) => updateFilter('service', option?.value ?? '')}
-                onBlur={onRunQuery}
+                onChange={(value) => {
+                  updateFilter('service', value.value);
+                  onRunQuery();
+                }}
               />
             </InlineField>
           )}

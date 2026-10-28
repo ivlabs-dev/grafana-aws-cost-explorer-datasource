@@ -103,6 +103,11 @@ func TestUtilizationQueryValidation(t *testing.T) {
 		q.ApplyDefaults()
 		return q
 	}
+	savingsPlansBase := func() Query {
+		q := Query{Version: QueryVersion, QueryType: QueryTypeSavingsPlansUtilization, Granularity: GranularityDaily, Format: FormatTimeSeries}
+		q.ApplyDefaults()
+		return q
+	}
 
 	tests := []struct {
 		name    string
@@ -114,13 +119,8 @@ func TestUtilizationQueryValidation(t *testing.T) {
 			query: base(),
 		},
 		{
-			name: "valid savings plans utilization",
-			query: func() Query {
-				q := base()
-				q.QueryType = QueryTypeSavingsPlansUtilization
-				q.ApplyDefaults()
-				return q
-			}(),
+			name:  "valid savings plans utilization",
+			query: savingsPlansBase(),
 		},
 		{
 			name: "reservation utilization rejects tag filter",
@@ -134,9 +134,7 @@ func TestUtilizationQueryValidation(t *testing.T) {
 		{
 			name: "savings plans utilization rejects service filter",
 			query: func() Query {
-				q := base()
-				q.QueryType = QueryTypeSavingsPlansUtilization
-				q.ApplyDefaults()
+				q := savingsPlansBase()
 				q.Filter = QueryFilter{Service: "Amazon Elastic Compute Cloud - Compute"}
 				return q
 			}(),
@@ -145,9 +143,7 @@ func TestUtilizationQueryValidation(t *testing.T) {
 		{
 			name: "savings plans utilization rejects group by subscription",
 			query: func() Query {
-				q := base()
-				q.QueryType = QueryTypeSavingsPlansUtilization
-				q.ApplyDefaults()
+				q := savingsPlansBase()
 				q.GroupBySubscription = true
 				return q
 			}(),
@@ -163,11 +159,27 @@ func TestUtilizationQueryValidation(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "savings plans utilization rejects a reservation-only metric",
+			name: "reservation utilization rejects an invalid service",
 			query: func() Query {
 				q := base()
-				q.QueryType = QueryTypeSavingsPlansUtilization
-				q.ApplyDefaults()
+				q.Filter.Service = "Amazon Simple Storage Service"
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "reservation utilization rejects an empty service",
+			query: func() Query {
+				q := base()
+				q.Filter.Service = ""
+				return q
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "savings plans utilization rejects a reservation-only metric",
+			query: func() Query {
+				q := savingsPlansBase()
 				q.UtilizationMetric = "NetRISavings"
 				return q
 			}(),
@@ -178,6 +190,14 @@ func TestUtilizationQueryValidation(t *testing.T) {
 			query: func() Query {
 				q := base()
 				q.GroupBySubscription = true
+				return q
+			}(),
+		},
+		{
+			name: "reservation utilization accepts an RDS service filter",
+			query: func() Query {
+				q := base()
+				q.Filter.Service = "Amazon Relational Database Service"
 				return q
 			}(),
 		},

@@ -280,6 +280,15 @@ model:
   additionally available for Reservation utilization only — Savings Plans
   utilization doesn't support a service dimension. Neither API supports cost
   allocation tag filtering.
+- **Reservation utilization's AWS service field is a required, fixed
+  dropdown** of the only five values AWS accepts for this API: EC2, RDS,
+  ElastiCache, Redshift, and OpenSearch (Elasticsearch). This is
+  deliberate: AWS reports utilization for only **one** of these services per
+  request, and **silently assumes EC2 if the filter is left unset** — an
+  account with real, active RDS (or ElastiCache/Redshift/OpenSearch)
+  reservations and zero EC2 reservations would otherwise show "no data" with
+  no indication why. To see more than one service's reservations, duplicate
+  the panel/query and change this field.
 - Reservation utilization can optionally **Group by subscription ID** (the
   only grouping AWS allows for this API). Savings Plans utilization never
   groups by any dimension.
@@ -292,6 +301,33 @@ model:
   curated subset rather than everything AWS exposes.
 - **Time series** format plots one metric at a time, chosen via the
   **Utilization metric** selector, from that same curated set.
+- An account/period with genuinely no eligible usage for either API is shown
+  as a normal empty result, not an error — AWS's `DataUnavailableException`
+  for this case is treated the same as a successful empty response.
+
+#### Multi-account (AWS Organizations) visibility
+
+Both APIs are scoped to **whichever AWS identity the data source's
+credentials resolve to** — this is AWS's own behavior, not something the
+plugin controls. A member account only ever sees its own share of a shared
+Savings Plan or Reservation; only the management/payer account identity sees
+the full picture across all linked accounts (AWS's docs put it as
+"Management account in an organization have access to member accounts").
+
+A common setup — a per-environment Grafana (e.g. in a "prod" account) that
+also wants to see org-wide utilization for a Savings Plan or Reservation
+purchased by the management account — has two options, and doesn't need
+anything new from this plugin:
+
+- **Two data sources**: one using the member account's own credentials for
+  cost-and-usage, one using management-account credentials (or an
+  AssumeRole role defined _in_ the management account, trusting the member
+  account) for the utilization query types. Different panels on the same
+  dashboard can reference different data sources.
+- **One data source** pointed at the management account, since it can see
+  cost-and-usage broken down by `LINKED_ACCOUNT` too (see the bundled "Cost
+  by linked account" panel) — trading a single, broader-scoped credential
+  for simplicity.
 
 Reservation/Savings Plans **coverage** (how much of your usage was covered by
 a reservation or Savings Plan, as opposed to how much of what you bought you

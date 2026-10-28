@@ -21,6 +21,18 @@ export type TopN = 0 | 1 | 5 | 10 | 20;
 export type QueryRangeMode = 'dashboard' | 'monthToDate' | 'previousEquivalentPeriod';
 export type QueryType = 'costAndUsage' | 'reservationUtilization' | 'savingsPlansUtilization';
 
+// The only SERVICE filter values AWS accepts for GetReservationUtilization
+// (one per request). AWS silently assumes the first value here if this
+// filter is left unset, which can hide real reservations in another one of
+// these services -- keep in sync with pkg/models/query.go's
+// ReservationEligibleServices.
+export type ReservationEligibleService =
+  | 'Amazon Elastic Compute Cloud - Compute'
+  | 'Amazon Relational Database Service'
+  | 'Amazon ElastiCache'
+  | 'Amazon Redshift'
+  | 'Amazon Elasticsearch Service';
+
 // Curated subsets of AWS's Reservation/Savings Plans utilization fields this
 // plugin exposes as a selectable time-series metric or table column. Keep in
 // sync with pkg/models/query.go's ReservationUtilizationMetrics /

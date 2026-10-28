@@ -29,7 +29,28 @@ const (
 	QueryTypeSavingsPlansUtilization = "savingsPlansUtilization"
 
 	DefaultUtilizationMetric = "UtilizationPercentage"
+
+	// DefaultReservationService matches AWS's own undocumented-in-the-UI
+	// default: GetReservationUtilization silently assumes EC2 when the
+	// SERVICE filter is omitted. This plugin makes that default explicit
+	// and visible instead of leaving it silent.
+	DefaultReservationService = "Amazon Elastic Compute Cloud - Compute"
 )
+
+// ReservationEligibleServices are the only SERVICE filter values AWS accepts
+// for GetReservationUtilization (one per request, not combinable). Leaving
+// this filter empty doesn't mean "all reservations" -- AWS silently
+// interprets it as DefaultReservationService, which can make an account with
+// real, active reservations in another one of these services (RDS being the
+// most common case) look like it has no reservations at all. This plugin
+// requires an explicit choice from this list rather than allowing that trap.
+var ReservationEligibleServices = []string{
+	DefaultReservationService,
+	"Amazon Relational Database Service",
+	"Amazon ElastiCache",
+	"Amazon Redshift",
+	"Amazon Elasticsearch Service",
+}
 
 // ReservationUtilizationMetrics is the curated subset of
 // types.ReservationAggregates fields this plugin exposes as a selectable
@@ -75,6 +96,15 @@ var validGroupings = map[string]struct{}{
 	"USAGE_TYPE":        {},
 	"OPERATION":         {},
 	"AVAILABILITY_ZONE": {},
+}
+
+func isReservationEligibleService(service string) bool {
+	for _, eligible := range ReservationEligibleServices {
+		if service == eligible {
+			return true
+		}
+	}
+	return false
 }
 
 type Query struct {
@@ -137,6 +167,9 @@ func (q *Query) ApplyDefaults() {
 	}
 	if q.UtilizationMetric == "" {
 		q.UtilizationMetric = DefaultUtilizationMetric
+	}
+	if q.QueryType == QueryTypeReservationUtilization && q.Filter.Service == "" {
+		q.Filter.Service = DefaultReservationService
 	}
 }
 
@@ -224,6 +257,13 @@ func (q Query) validateUtilization() error {
 	var allowedMetrics []string
 	switch q.QueryType {
 	case QueryTypeReservationUtilization:
+		if !isReservationEligibleService(q.Filter.Service) {
+			return fmt.Errorf(
+				"AWS service %q is not valid for Reservation utilization; it must be one of %v "+
+					"(AWS silently assumes EC2 if left unset, which can hide real reservations in another service)",
+				q.Filter.Service, ReservationEligibleServices,
+			)
+		}
 		allowedMetrics = ReservationUtilizationMetrics
 	case QueryTypeSavingsPlansUtilization:
 		if strings.TrimSpace(q.Filter.Service) != "" {
