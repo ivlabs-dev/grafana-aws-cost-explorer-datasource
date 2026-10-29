@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- Make the **Mock data** mode's synthetic data realistic: per-service growth
+  trends, weekday/weekend and slow monthly patterns, and occasional spikes
+  replace the previous flat noise. Totals, per-service, per-account,
+  per-region, and per-tag groupings now come from one cost model and
+  reconcile exactly; tax is a fixed share of the other services; monthly
+  buckets sum their days (and a partial month reads as month-to-date);
+  values depend only on the calendar date, never on the requested range; and
+  the reservation and Savings Plans utilization/coverage series vary like
+  real ones.
+- Replace the redacted screenshots with ones captured against the mock data,
+  and add screenshots of the Reservation utilization query editor and the
+  data source configuration page.
+
 ## 1.1.0 (2026-10-28)
 
 - Add a **Mock data** authentication mode needing no AWS account,

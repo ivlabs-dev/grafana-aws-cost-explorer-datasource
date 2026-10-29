@@ -38,6 +38,14 @@
         "path": "img/aws-cost-explorer-query-editor.png"
       },
       {
+        "name": "Reservation utilization query editor",
+        "path": "img/aws-cost-explorer-query-editor-reservations.png"
+      },
+      {
+        "name": "Data source configuration with Mock data mode",
+        "path": "img/aws-cost-explorer-datasource-config.png"
+      },
+      {
         "name": "Query Inspector cache and freshness metadata",
         "path": "img/aws-cost-explorer-query-inspector.png"
       }
