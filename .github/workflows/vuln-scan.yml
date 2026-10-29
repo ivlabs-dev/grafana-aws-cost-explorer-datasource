@@ -1,0 +1,33 @@
+name: Vulnerability scan
+
+# Vulnerability databases update daily, so a build that passed last week can
+# fail the Grafana plugin review today. Scan on a schedule to find out first.
+on:
+  schedule:
+    - cron: '0 6 * * 1' # every Monday
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Scan source
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+      - name: Scan built binary
+        run: |
+          CGO_ENABLED=0 go build -o "$RUNNER_TEMP/plugin-backend" ./pkg
+          go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -mode=binary "$RUNNER_TEMP/plugin-backend"

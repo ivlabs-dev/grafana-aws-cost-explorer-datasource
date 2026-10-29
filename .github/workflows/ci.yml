@@ -75,6 +75,20 @@ jobs:
         if: steps.check-for-backend.outputs.has-backend == 'true'
         run: go test ./pkg/...
 
+      - name: Check release Go version matches go.mod
+        if: steps.check-for-backend.outputs.has-backend == 'true'
+        run: |
+          want=$(awk '/^go /{print $2}' go.mod)
+          got=$(sed -n "s/.*go-version: '\(.*\)'.*/\1/p" .github/workflows/release.yml)
+          if [ "$want" != "$got" ]; then
+            echo "release.yml go-version ($got) does not match go.mod ($want)"
+            exit 1
+          fi
+
+      - name: Scan backend source for vulnerabilities
+        if: steps.check-for-backend.outputs.has-backend == 'true'
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
       - name: Lint backend
         if: steps.check-for-backend.outputs.has-backend == 'true'
         uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
@@ -88,6 +102,15 @@ jobs:
         with:
           version: latest
           args: buildAll
+
+      - name: Scan built backend binaries for vulnerabilities
+        if: steps.check-for-backend.outputs.has-backend == 'true'
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          for bin in dist/gpx_*; do
+            echo "Scanning $bin"
+            "$(go env GOPATH)/bin/govulncheck" -mode=binary "$bin"
+          done
 
       - name: Check for E2E
         id: check-for-e2e
