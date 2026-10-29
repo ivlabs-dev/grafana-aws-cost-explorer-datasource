@@ -1,1 +1,11 @@
+if git diff --cached --name-only | grep -qE '^(package\.json|package-lock\.json)$'; then
+  echo "package.json/package-lock.json changed -- verifying npm ci would succeed..."
+  if ! npm ci --dry-run > /dev/null; then
+    echo ""
+    echo "error: package-lock.json is out of sync with package.json (npm ci would fail in CI)."
+    echo "Run 'npm install' to regenerate it, then stage the result and commit again."
+    exit 1
+  fi
+fi
+
 npx lint-staged
