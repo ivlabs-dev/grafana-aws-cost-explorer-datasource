@@ -114,10 +114,23 @@ func isWeekend(t time.Time) bool {
 	return t.Weekday() == time.Saturday || t.Weekday() == time.Sunday
 }
 
+// bits64 returns the two's-complement bit pattern of n as a uint64 without an
+// unchecked signed-to-unsigned conversion: negative n maps to ^(-n-1).
+func bits64(n int) uint64 {
+	if n >= 0 {
+		return uint64(n)
+	}
+	m := -(n + 1)
+	if m < 0 { // unreachable: n < 0 implies m >= 0
+		return 0
+	}
+	return ^uint64(m)
+}
+
 // hash64 is a splitmix64 finalizer: a stateless, well-mixed deterministic
 // hash. Explicit uint64 arithmetic keeps results identical on 32-bit builds.
 func hash64(seed, day int) uint64 {
-	z := uint64(int64(seed))<<32 ^ uint64(int64(day))
+	z := bits64(seed)<<32 ^ bits64(day)
 	z += 0x9e3779b97f4a7c15
 	z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9
 	z = (z ^ (z >> 27)) * 0x94d049bb133111eb

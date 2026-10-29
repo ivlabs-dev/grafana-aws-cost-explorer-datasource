@@ -85,6 +85,10 @@ jobs:
             exit 1
           fi
 
+      - name: Security-scan backend with gosec
+        if: steps.check-for-backend.outputs.has-backend == 'true'
+        run: go run github.com/securego/gosec/v2/cmd/gosec@v2.30.0 -quiet ./...
+
       - name: Scan backend source for vulnerabilities
         if: steps.check-for-backend.outputs.has-backend == 'true'
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
