@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  govulncheck:
-    name: govulncheck
+  scan:
+    name: gosec and govulncheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -23,6 +23,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Run gosec
+        run: go run github.com/securego/gosec/v2/cmd/gosec@v2.30.0 -quiet ./...
 
       - name: Scan source
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...

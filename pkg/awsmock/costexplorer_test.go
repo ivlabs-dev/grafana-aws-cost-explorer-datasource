@@ -379,3 +379,11 @@ func mean(vs []float64) float64 {
 	}
 	return sum / float64(len(vs))
 }
+
+func TestBits64MatchesTwosComplementConversion(t *testing.T) {
+	for _, n := range []int{0, 1, 7, 365, math.MaxInt32, math.MaxInt, -1, -2, -90, math.MinInt32, math.MinInt} {
+		if got, want := bits64(n), uint64(int64(n)); got != want {
+			t.Errorf("bits64(%d) = %#x, want %#x", n, got, want)
+		}
+	}
+}
