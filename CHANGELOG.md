@@ -1,7 +1,15 @@
 # Changelog
 
-## Unreleased
+## 1.1.1 (2026-10-29)
 
+- Security: raise the Go toolchain to 1.26.10 and `golang.org/x/net` to
+  0.62.0, resolving the standard-library and `x/net` vulnerabilities that
+  `govulncheck` reported against the built backend binary
+  (GO-2026-6599 through GO-2026-6617, GO-2026-6809, GO-2026-6860 and
+  GO-2026-6866). The release workflow now builds with the same Go version as
+  `go.mod`.
+- CI now runs `govulncheck` against the source and the built binaries on
+  every pull request, and weekly on a schedule.
 - Make the **Mock data** mode's synthetic data realistic: per-service growth
   trends, weekday/weekend and slow monthly patterns, and occasional spikes
   replace the previous flat noise. Totals, per-service, per-account,
