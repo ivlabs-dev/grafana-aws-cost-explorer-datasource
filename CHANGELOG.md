@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.2 (2026-10-29)
+
+- Fix the two HIGH `gosec` findings (G115, integer overflow conversion)
+  reported in the Grafana plugin review, in the Mock data generator's hash
+  helper. Generated mock values are unchanged.
+- CI, the weekly scan, and the release checklist now run `gosec` as well as
+  `govulncheck`.
+
 ## 1.1.1 (2026-10-29)
 
 - Security: raise the Go toolchain to 1.26.10 and `golang.org/x/net` to
