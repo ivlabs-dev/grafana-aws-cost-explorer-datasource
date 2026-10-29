@@ -131,6 +131,11 @@ jobs:
         env:
           ARCHIVE: ${{ steps.metadata.outputs.archive }}
 
+      - name: Scan dependencies for known vulnerabilities
+        run: npx -y @grafana/plugin-validator@latest -analyzer=osv-scanner -sourceCodeUri file://./ ${ARCHIVE}
+        env:
+          ARCHIVE: ${{ steps.metadata.outputs.archive }}
+
       - name: Archive Build
         uses: actions/upload-artifact@v7
         with:
