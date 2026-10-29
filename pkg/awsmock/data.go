@@ -8,6 +8,7 @@ package awsmock
 
 import (
 	"context"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -22,23 +23,43 @@ func ResolveCredentials(context.Context) error {
 	return nil
 }
 
-// serviceCost is one curated AWS service this mock generates grouped cost
-// data for, with a baseline daily cost used to seed deterministic jitter.
-// Includes "Tax" so the bundled dashboard's service breakdown panel (which
-// splits tax onto its own axis) has something real to split.
+// anchorDate is the fixed origin every mock series is measured from. Values
+// are a pure function of the calendar date (never of "days since the query
+// started"), so a given day looks identical no matter what time range or
+// granularity a panel requests -- panels agree with each other, and
+// screenshots and demo dashboards stay stable across refreshes.
+var anchorDate = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// taxService is derived from the other services' spend rather than modeled
+// on its own, so the bundled dashboard's service breakdown panel (which
+// splits tax onto its own axis) has a realistic proportional series.
+const (
+	taxService = "Tax"
+	taxRate    = 0.08
+)
+
+// serviceCost describes how one curated AWS service's daily cost behaves:
+// a baseline that grows slowly, a slow ~monthly wave, a weekday/weekend
+// shape, day-to-day noise and (for bursty services) occasional spikes.
 type serviceCost struct {
-	name string
-	base float64
+	name       string
+	base       float64 // USD/day at the anchor date
+	growth     float64 // fractional growth per day
+	weekend    float64 // multiplier applied on Saturday/Sunday (1 = none)
+	wave       float64 // amplitude of a slow ~30 day wave
+	noise      float64 // amplitude of day-to-day noise
+	spikeEvery float64 // chance a given day spikes (0 = never)
+	spikeMult  float64 // extra multiplier on a spike day
 }
 
 var mockServices = []serviceCost{
-	{"Amazon Elastic Compute Cloud - Compute", 420},
-	{"Amazon Relational Database Service", 180},
-	{"Amazon Simple Storage Service", 65},
-	{"Amazon ElastiCache", 40},
-	{"Amazon CloudFront", 25},
-	{"AWS Lambda", 12},
-	{"Tax", 55},
+	{name: "Amazon Elastic Compute Cloud - Compute", base: 420, growth: 0.0006, weekend: 0.85, wave: 0.04, noise: 0.02},
+	{name: "Amazon Relational Database Service", base: 180, growth: 0.0003, weekend: 0.98, wave: 0.01, noise: 0.01},
+	{name: "Amazon Simple Storage Service", base: 65, growth: 0.0012, weekend: 1, wave: 0.01, noise: 0.01},
+	{name: "Amazon ElastiCache", base: 40, growth: 0, weekend: 1, wave: 0.02, noise: 0.015},
+	{name: "Amazon CloudFront", base: 25, growth: 0.0004, weekend: 1.08, wave: 0.25, noise: 0.06},
+	{name: "AWS Lambda", base: 12, growth: 0.0008, weekend: 0.7, wave: 0.1, noise: 0.15, spikeEvery: 0.06, spikeMult: 1.2},
+	{name: taxService},
 }
 
 var mockLinkedAccounts = []string{"111111111111", "222222222222", "333333333333"}
@@ -50,11 +71,21 @@ var mockTagValues = map[string][]string{
 	"Team":        {"platform", "data", "growth"},
 }
 
+// baseShares is each non-SERVICE group-by dimension's share of total spend,
+// in labelsFor order. Shares sum to 1, so any grouping reconciles with the
+// ungrouped total.
+var baseShares = map[string][]float64{
+	"LINKED_ACCOUNT": {0.55, 0.30, 0.15},
+	"REGION":         {0.62, 0.26, 0.12},
+	"Environment":    {0.58, 0.30, 0.12},
+	"Team":           {0.45, 0.35, 0.20},
+}
+
 // labelsFor returns the synthetic group labels for an AWS Cost Explorer
-// group-by dimension, capped at four values so a 2-dimension grouping's
-// cross product stays small. Unrecognized dimensions (e.g. INSTANCE_TYPE,
-// USAGE_TYPE) still get a small generic fallback rather than an empty
-// response, so trying them in mock mode doesn't look broken.
+// group-by dimension or cost allocation tag key, capped at four values so a
+// 2-dimension grouping's cross product stays small. Unrecognized dimensions
+// (e.g. INSTANCE_TYPE, USAGE_TYPE) still get a small generic fallback rather
+// than an empty response, so trying them in mock mode doesn't look broken.
 func labelsFor(dimension string) []string {
 	switch dimension {
 	case "SERVICE":
@@ -67,33 +98,117 @@ func labelsFor(dimension string) []string {
 		return mockLinkedAccounts
 	case "REGION":
 		return mockRegions
-	default:
-		return []string{"Bucket A", "Bucket B"}
 	}
+	if values, ok := mockTagValues[dimension]; ok {
+		return values
+	}
+	return []string{"Bucket A", "Bucket B"}
 }
 
-// baseCostFor returns a plausible per-day baseline for a group label,
-// falling back to a generic value for labels not in mockServices (accounts,
-// regions, and the generic fallback buckets).
-func baseCostFor(label string) float64 {
-	for _, s := range mockServices {
-		if s.name == label {
-			return s.base
+// dayNumber is the whole number of days between anchorDate and t.
+func dayNumber(t time.Time) int {
+	return int(t.Sub(anchorDate).Hours() / 24)
+}
+
+func isWeekend(t time.Time) bool {
+	return t.Weekday() == time.Saturday || t.Weekday() == time.Sunday
+}
+
+// hash64 is a splitmix64 finalizer: a stateless, well-mixed deterministic
+// hash. Explicit uint64 arithmetic keeps results identical on 32-bit builds.
+func hash64(seed, day int) uint64 {
+	z := uint64(int64(seed))<<32 ^ uint64(int64(day))
+	z += 0x9e3779b97f4a7c15
+	z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9
+	z = (z ^ (z >> 27)) * 0x94d049bb133111eb
+	return z ^ (z >> 31)
+}
+
+// unit returns a deterministic value in [0, 1) for a (seed, day) pair.
+func unit(seed, day int) float64 {
+	return float64(hash64(seed, day)>>11) / float64(1<<53)
+}
+
+// noise returns a deterministic value in [-1, 1) for a (seed, day) pair.
+func noise(seed, day int) float64 {
+	return unit(seed, day)*2 - 1
+}
+
+// phase returns a stable per-seed offset in radians for slow waves, so
+// different series don't all peak on the same day.
+func phase(seed int) float64 {
+	return unit(seed, -1) * 2 * math.Pi
+}
+
+// dailyCost is one service's cost on one day, before tax.
+func (s serviceCost) dailyCost(seed int, t time.Time) float64 {
+	d := dayNumber(t)
+	trend := math.Max(0.5, 1+s.growth*float64(d))
+	wave := 1 + s.wave*math.Sin(2*math.Pi*float64(d)/30+phase(seed))
+	v := s.base * trend * wave * (1 + s.noise*noise(seed, d))
+	if isWeekend(t) && s.weekend > 0 {
+		v *= s.weekend
+	}
+	if s.spikeEvery > 0 && unit(seed+100, d) < s.spikeEvery {
+		v *= 1 + s.spikeMult*unit(seed+200, d)
+	}
+	return v
+}
+
+// serviceCosts returns every mockServices entry's cost on day t, in
+// mockServices order, with Tax derived from the rest.
+func serviceCosts(t time.Time) []float64 {
+	costs := make([]float64, len(mockServices))
+	subtotal := 0.0
+	taxIdx := -1
+	for i, s := range mockServices {
+		if s.name == taxService {
+			taxIdx = i
+			continue
+		}
+		costs[i] = s.dailyCost(i, t)
+		subtotal += costs[i]
+	}
+	if taxIdx >= 0 {
+		costs[taxIdx] = subtotal * taxRate
+	}
+	return costs
+}
+
+// sharesFor returns each label's share of spend on day t for a non-SERVICE
+// dimension. Shares wobble slowly around baseShares but are renormalized to
+// sum to exactly 1, so groupings always reconcile with the total.
+func sharesFor(dimension string, t time.Time) []float64 {
+	base, ok := baseShares[dimension]
+	if !ok {
+		n := len(labelsFor(dimension))
+		base = make([]float64, n)
+		for i := range base {
+			base[i] = 1 / float64(n)
 		}
 	}
-	return 90
+	d := float64(dayNumber(t))
+	out := make([]float64, len(base))
+	sum := 0.0
+	for i, share := range base {
+		out[i] = share * (1 + 0.06*math.Sin(2*math.Pi*d/45+float64(i)*2.1))
+		sum += out[i]
+	}
+	for i := range out {
+		out[i] /= sum
+	}
+	return out
 }
 
-// jitter returns a small deterministic multiplier (0.85-1.15) seeded by two
-// integers, so repeated calls for the same (seed, day) pair always agree --
-// screenshots and demo dashboards stay stable across refreshes rather than
-// flickering on every query.
-func jitter(seed, day int) float64 {
-	h := int64(seed)*2654435761 + int64(day)*40503
-	if h < 0 {
-		h = -h
+// signal builds a smooth percentage-style series: a center value, a slow
+// sine wave of the given period (days), a weekend shift and small noise.
+func signal(seed int, t time.Time, center, slowAmp, periodDays, weekendDelta, noiseAmp float64) float64 {
+	d := dayNumber(t)
+	v := center + slowAmp*math.Sin(2*math.Pi*float64(d)/periodDays+phase(seed))
+	if isWeekend(t) {
+		v += weekendDelta
 	}
-	return 0.85 + float64(h%300)/1000
+	return v + noiseAmp*noise(seed+300, d)
 }
 
 func amount(v float64) *string {

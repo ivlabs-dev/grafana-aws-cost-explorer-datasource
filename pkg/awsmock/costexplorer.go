@@ -37,28 +37,41 @@ func (CostExplorerClient) GetCostAndUsage(
 	granularity := string(input.Granularity)
 	periods := walkPeriods(start, end, granularity)
 	dimensions := groupDimensions(input.GroupBy)
+	rangeEnd, _ := time.Parse(time.DateOnly, end)
+	combos := groupCombinations(dimensions)
 
 	results := make([]types.ResultByTime, 0, len(periods))
-	for dayIndex, periodStart := range periods {
+	for _, periodStart := range periods {
 		result := types.ResultByTime{TimePeriod: periodDateInterval(periodStart, granularity)}
-		if len(dimensions) == 0 {
-			total := 0.0
-			for si, svc := range mockServices {
-				total += svc.base * jitter(si, dayIndex)
+
+		// A period's cost is the sum of its days, clipped to the requested
+		// range so a partial final month reads as month-to-date.
+		to := periodEnd(periodStart, granularity)
+		if to.After(rangeEnd) {
+			to = rangeEnd
+		}
+		total := 0.0
+		values := make([]float64, len(combos))
+		for day := periodStart; day.Before(to); day = day.AddDate(0, 0, 1) {
+			costs := serviceCosts(day)
+			for _, c := range costs {
+				total += c
 			}
+			for ci, combo := range combos {
+				values[ci] += combo.dailyValue(dimensions, costs, day)
+			}
+		}
+
+		if len(dimensions) == 0 {
 			result.Total = map[string]types.MetricValue{
 				metric: {Amount: amount(total), Unit: aws.String(unit)},
 			}
 		} else {
-			for gi, combo := range groupCombinations(dimensions) {
-				value := 0.0
-				for _, label := range combo {
-					value += baseCostFor(label) * jitter(gi+1, dayIndex)
-				}
+			for ci, combo := range combos {
 				result.Groups = append(result.Groups, types.Group{
-					Keys: combo,
+					Keys: combo.labels,
 					Metrics: map[string]types.MetricValue{
-						metric: {Amount: amount(value), Unit: aws.String(unit)},
+						metric: {Amount: amount(values[ci]), Unit: aws.String(unit)},
 					},
 				})
 			}
@@ -107,17 +120,18 @@ func (CostExplorerClient) GetReservationUtilization(
 	grouped := len(input.GroupBy) > 0
 
 	results := make([]types.UtilizationByTime, 0, len(periods))
-	for dayIndex, periodStart := range periods {
+	for _, periodStart := range periods {
+		days := periodDays(periodStart, granularity)
 		row := types.UtilizationByTime{TimePeriod: periodDateInterval(periodStart, granularity)}
 		if grouped {
 			for si, sub := range mockSubscriptionIDs {
 				row.Groups = append(row.Groups, types.ReservationUtilizationGroup{
 					Value:       aws.String(sub),
-					Utilization: reservationAggregates(si, dayIndex),
+					Utilization: reservationAggregates(si, periodStart, days*subscriptionSizes[si]),
 				})
 			}
 		} else {
-			row.Total = reservationAggregates(0, dayIndex)
+			row.Total = reservationAggregates(len(mockSubscriptionIDs), periodStart, days*totalSubscriptionSize)
 		}
 		results = append(results, row)
 	}
@@ -134,9 +148,9 @@ func (CostExplorerClient) GetSavingsPlansUtilization(
 	periods := walkPeriods(start, end, granularity)
 
 	results := make([]types.SavingsPlansUtilizationByTime, 0, len(periods))
-	for dayIndex, periodStart := range periods {
-		util := clampPercent(70 + 25*jitter(0, dayIndex))
-		totalCommitment := 100.0
+	for _, periodStart := range periods {
+		util := clampPercent(signal(10, periodStart, 93, 4, 55, 0, 1))
+		totalCommitment := 60.0 * periodDays(periodStart, granularity)
 		usedCommitment := totalCommitment * util / 100
 		unusedCommitment := totalCommitment - usedCommitment
 		onDemandEquivalent := usedCommitment * 1.25
@@ -172,10 +186,10 @@ func (CostExplorerClient) GetReservationCoverage(
 	periods := walkPeriods(start, end, granularity)
 
 	results := make([]types.CoverageByTime, 0, len(periods))
-	for dayIndex, periodStart := range periods {
+	for _, periodStart := range periods {
 		results = append(results, types.CoverageByTime{
 			TimePeriod: periodDateInterval(periodStart, granularity),
-			Total:      coverageAggregate(dayIndex),
+			Total:      coverageAggregate(periodStart, periodDays(periodStart, granularity)),
 		})
 	}
 	return &costexplorer.GetReservationCoverageOutput{CoveragesByTime: results}, nil
@@ -191,9 +205,9 @@ func (CostExplorerClient) GetSavingsPlansCoverage(
 	periods := walkPeriods(start, end, granularity)
 
 	results := make([]types.SavingsPlansCoverage, 0, len(periods))
-	for dayIndex, periodStart := range periods {
-		pct := clampPercent(45 + 20*jitter(2, dayIndex))
-		totalCost := 200.0
+	for _, periodStart := range periods {
+		pct := clampPercent(signal(11, periodStart, 58, 8, 80, 4, 1.5))
+		totalCost := 200.0 * periodDays(periodStart, granularity)
 		spendCovered := totalCost * pct / 100
 		onDemandCost := totalCost - spendCovered
 
@@ -210,9 +224,23 @@ func (CostExplorerClient) GetSavingsPlansCoverage(
 	return &costexplorer.GetSavingsPlansCoverageOutput{SavingsPlansCoverages: results}, nil
 }
 
-func reservationAggregates(seed, day int) *types.ReservationAggregates {
-	util := clampPercent(75 + 20*jitter(seed, day))
-	purchasedHours := 24.0
+// subscriptionSizes is each mock reservation subscription's relative size
+// (instances), so per-subscription hours and dollars differ.
+var (
+	subscriptionSizes     = []float64{10, 6, 4}
+	totalSubscriptionSize = 20.0
+)
+
+// subscriptionUtilization centers each subscription on a different level so
+// grouped charts separate: one healthy, one decent, one underused.
+var subscriptionUtilization = []float64{96, 88, 74, 89}
+
+// reservationAggregates builds one utilization row. size is the number of
+// reserved instances times the days in the period, so hours and dollars
+// scale with the requested granularity.
+func reservationAggregates(seed int, t time.Time, size float64) *types.ReservationAggregates {
+	util := clampPercent(signal(seed, t, subscriptionUtilization[seed], 3, float64(60+13*seed), 0, 1.5))
+	purchasedHours := 24.0 * size
 	usedHours := purchasedHours * util / 100
 	unusedHours := purchasedHours - usedHours
 	onDemandCost := usedHours * 0.4
@@ -232,11 +260,9 @@ func reservationAggregates(seed, day int) *types.ReservationAggregates {
 	}
 }
 
-func coverageAggregate(day int) *types.Coverage {
-	// Centered around the 40-60% range observed against a real account
-	// earlier in development, rather than an arbitrary number.
-	pct := clampPercent(40 + 20*jitter(1, day))
-	totalHours := 24.0
+func coverageAggregate(t time.Time, days float64) *types.Coverage {
+	pct := clampPercent(signal(12, t, 52, 9, 70, 3, 1.2))
+	totalHours := 24.0 * totalSubscriptionSize * days
 	reservedHours := totalHours * pct / 100
 	onDemandHours := totalHours - reservedHours
 	onDemandCost := onDemandHours * 0.45
@@ -249,6 +275,11 @@ func coverageAggregate(day int) *types.Coverage {
 		},
 		CoverageCost: &types.CoverageCost{OnDemandCost: amount(onDemandCost)},
 	}
+}
+
+// periodDays is the number of days in one granularity bucket.
+func periodDays(periodStart time.Time, granularity string) float64 {
+	return periodEnd(periodStart, granularity).Sub(periodStart).Hours() / 24
 }
 
 func clampPercent(v float64) float64 {
@@ -285,15 +316,47 @@ func groupDimensions(groupBy []types.GroupDefinition) []string {
 	return dims
 }
 
-func groupCombinations(dimensions []string) [][]string {
-	combos := [][]string{{}}
+// groupCombo is one cell of a group-by cross product: its display labels and
+// each label's index within its dimension's labelsFor list.
+type groupCombo struct {
+	labels  []string
+	indexes []int
+}
+
+// dailyValue is this combo's cost on one day. A SERVICE dimension selects
+// that service's cost; otherwise the day's total is used. Every other
+// dimension then takes its label's share, so groupings reconcile.
+func (c groupCombo) dailyValue(dimensions []string, serviceDay []float64, day time.Time) float64 {
+	value := 0.0
+	for _, cost := range serviceDay {
+		value += cost
+	}
+	serviceUsed := false
+	for k, dim := range dimensions {
+		if dim == "SERVICE" && !serviceUsed {
+			value = serviceDay[c.indexes[k]]
+			serviceUsed = true
+		}
+	}
+	for k, dim := range dimensions {
+		if dim != "SERVICE" {
+			value *= sharesFor(dim, day)[c.indexes[k]]
+		}
+	}
+	return value
+}
+
+func groupCombinations(dimensions []string) []groupCombo {
+	combos := []groupCombo{{}}
 	for _, dim := range dimensions {
 		labels := labelsFor(dim)
-		next := make([][]string, 0, len(combos)*len(labels))
+		next := make([]groupCombo, 0, len(combos)*len(labels))
 		for _, combo := range combos {
-			for _, label := range labels {
-				extended := append(append([]string{}, combo...), label)
-				next = append(next, extended)
+			for i, label := range labels {
+				next = append(next, groupCombo{
+					labels:  append(append([]string{}, combo.labels...), label),
+					indexes: append(append([]int{}, combo.indexes...), i),
+				})
 			}
 		}
 		combos = next

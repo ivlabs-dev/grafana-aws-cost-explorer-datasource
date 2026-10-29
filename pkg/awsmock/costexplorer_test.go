@@ -2,6 +2,9 @@ package awsmock
 
 import (
 	"context"
+	"math"
+	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -217,4 +220,162 @@ func TestGetSavingsPlansCoverageReturnsCuratedFields(t *testing.T) {
 	if coverage.CoveragePercentage == nil || coverage.TotalCost == nil {
 		t.Fatal("expected a populated Coverage entry")
 	}
+}
+
+func costQuery(t *testing.T, granularity types.Granularity, start, end string, groupBy ...string) []types.ResultByTime {
+	t.Helper()
+	input := &costexplorer.GetCostAndUsageInput{
+		Granularity: granularity,
+		Metrics:     []string{"UnblendedCost"},
+		TimePeriod:  &types.DateInterval{Start: aws.String(start), End: aws.String(end)},
+	}
+	for _, key := range groupBy {
+		input.GroupBy = append(input.GroupBy, types.GroupDefinition{Key: aws.String(key)})
+	}
+	output, err := CostExplorerClient{}.GetCostAndUsage(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return output.ResultsByTime
+}
+
+func parseAmount(t *testing.T, s *string) float64 {
+	t.Helper()
+	v, err := strconv.ParseFloat(aws.ToString(s), 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+func totalOf(t *testing.T, r types.ResultByTime) float64 {
+	t.Helper()
+	return parseAmount(t, r.Total["UnblendedCost"].Amount)
+}
+
+func sumGroups(t *testing.T, r types.ResultByTime) float64 {
+	t.Helper()
+	sum := 0.0
+	for _, g := range r.Groups {
+		sum += parseAmount(t, g.Metrics["UnblendedCost"].Amount)
+	}
+	return sum
+}
+
+func TestGroupedCostsReconcileWithTotal(t *testing.T) {
+	total := totalOf(t, costQuery(t, types.GranularityDaily, "2026-07-01", "2026-07-02")[0])
+	for _, groupBy := range [][]string{
+		{"SERVICE"},
+		{"LINKED_ACCOUNT"},
+		{"REGION"},
+		{"Environment"},
+		{"SERVICE", "LINKED_ACCOUNT"},
+		{"LINKED_ACCOUNT", "REGION"},
+	} {
+		got := sumGroups(t, costQuery(t, types.GranularityDaily, "2026-07-01", "2026-07-02", groupBy...)[0])
+		if math.Abs(got-total) > 0.01 {
+			t.Errorf("groupBy %v sums to %.4f, want total %.4f", groupBy, got, total)
+		}
+	}
+}
+
+func TestMonthlyCostIsSumOfDays(t *testing.T) {
+	monthly := totalOf(t, costQuery(t, types.GranularityMonthly, "2026-07-01", "2026-08-01")[0])
+	daily := 0.0
+	for _, r := range costQuery(t, types.GranularityDaily, "2026-07-01", "2026-08-01") {
+		daily += totalOf(t, r)
+	}
+	if math.Abs(monthly-daily) > 0.01 {
+		t.Fatalf("monthly = %.2f, sum of days = %.2f", monthly, daily)
+	}
+}
+
+func TestMonthlyCostIsClippedToRequestedRange(t *testing.T) {
+	partial := totalOf(t, costQuery(t, types.GranularityMonthly, "2026-07-01", "2026-07-11")[0])
+	full := totalOf(t, costQuery(t, types.GranularityMonthly, "2026-07-01", "2026-08-01")[0])
+	if partial >= full/2 {
+		t.Fatalf("10 of 31 days = %.2f should be well under half of the full month %.2f", partial, full)
+	}
+}
+
+func TestDailyCostDoesNotDependOnRequestedRange(t *testing.T) {
+	short := costQuery(t, types.GranularityDaily, "2026-07-10", "2026-07-11")
+	long := costQuery(t, types.GranularityDaily, "2026-07-01", "2026-07-31")
+	if totalOf(t, short[0]) != totalOf(t, long[9]) {
+		t.Fatal("2026-07-10 should cost the same whatever range it is queried in")
+	}
+}
+
+func TestDailyCostShowsTrendAndWeeklyPattern(t *testing.T) {
+	rows := costQuery(t, types.GranularityDaily, "2026-07-06", "2026-08-03") // Mon..Sun x4
+	var weekday, weekend []float64
+	minV, maxV := math.Inf(1), math.Inf(-1)
+	for i, r := range rows {
+		v := totalOf(t, r)
+		minV, maxV = math.Min(minV, v), math.Max(maxV, v)
+		if i%7 >= 5 {
+			weekend = append(weekend, v)
+		} else {
+			weekday = append(weekday, v)
+		}
+	}
+	if maxV/minV < 1.05 {
+		t.Fatalf("series is flat: min %.1f max %.1f", minV, maxV)
+	}
+	if mean(weekend) >= mean(weekday) {
+		t.Fatalf("weekend mean %.1f should be below weekday mean %.1f", mean(weekend), mean(weekday))
+	}
+}
+
+func TestTaxIsProportionalToOtherServices(t *testing.T) {
+	row := costQuery(t, types.GranularityDaily, "2026-07-01", "2026-07-02", "SERVICE")[0]
+	var tax, other float64
+	for _, g := range row.Groups {
+		v := parseAmount(t, g.Metrics["UnblendedCost"].Amount)
+		if g.Keys[0] == taxService {
+			tax = v
+		} else {
+			other += v
+		}
+	}
+	if math.Abs(tax-other*taxRate) > 0.01 {
+		t.Fatalf("tax = %.2f, want %.2f (%.0f%% of %.2f)", tax, other*taxRate, taxRate*100, other)
+	}
+}
+
+func TestUtilizationAndCoverageAreVariedPercentages(t *testing.T) {
+	ctx := context.Background()
+	period := &types.DateInterval{Start: aws.String("2026-05-01"), End: aws.String("2026-08-01")}
+	ri, err := CostExplorerClient{}.GetReservationCoverage(ctx, &costexplorer.GetReservationCoverageInput{Granularity: types.GranularityDaily, TimePeriod: period})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp, err := CostExplorerClient{}.GetSavingsPlansUtilization(ctx, &costexplorer.GetSavingsPlansUtilizationInput{Granularity: types.GranularityDaily, TimePeriod: period})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var riPct, spPct []float64
+	for _, c := range ri.CoveragesByTime {
+		riPct = append(riPct, parseAmount(t, c.Total.CoverageHours.CoverageHoursPercentage))
+	}
+	for _, u := range sp.SavingsPlansUtilizationsByTime {
+		spPct = append(spPct, parseAmount(t, u.Utilization.UtilizationPercentage))
+	}
+	for name, series := range map[string][]float64{"RI coverage": riPct, "SP utilization": spPct} {
+		lo, hi := slices.Min(series), slices.Max(series)
+		if lo < 0 || hi > 100 {
+			t.Errorf("%s out of [0,100]: %.1f..%.1f", name, lo, hi)
+		}
+		if hi-lo < 5 {
+			t.Errorf("%s barely varies over 92 days: %.1f..%.1f", name, lo, hi)
+		}
+	}
+}
+
+func mean(vs []float64) float64 {
+	sum := 0.0
+	for _, v := range vs {
+		sum += v
+	}
+	return sum / float64(len(vs))
 }
