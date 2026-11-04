@@ -62,3 +62,16 @@ func TestConvertSavingsPlansInventoryTableShape(t *testing.T) {
 		t.Fatalf("Commitment field should have a currencyUSD unit, got %+v", commitmentField.Config)
 	}
 }
+
+func TestConvertReservationInventoryIncludesRegion(t *testing.T) {
+	now := time.Now().UTC()
+	items := []inventory.ReservedItem{
+		{Service: "EC2", Region: "eu-west-1", ID: "ri-eu", State: "active", Start: now, End: now.Add(24 * time.Hour)},
+	}
+
+	frames := ConvertReservationInventory(items, nil)
+	region := fieldByName(t, frames[0], "Region")
+	if region.At(0).(string) != "eu-west-1" {
+		t.Fatalf("Region = %v, want eu-west-1", region.At(0))
+	}
+}

@@ -5,17 +5,18 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/awsclient"
 )
 
 // fetchEC2 lists EC2 Reserved Instances. Unlike every other reservation
 // Describe call this package uses, EC2's doesn't paginate -- it returns
 // everything in a single response.
-func (s *Service) fetchEC2(ctx context.Context) ([]ReservedItem, error) {
-	if s.ec2 == nil {
+func fetchEC2(ctx context.Context, client awsclient.EC2ReservedInstancesAPI) ([]ReservedItem, error) {
+	if client == nil {
 		return nil, nil
 	}
 
-	output, err := s.ec2.DescribeReservedInstances(ctx, &ec2.DescribeReservedInstancesInput{})
+	output, err := client.DescribeReservedInstances(ctx, &ec2.DescribeReservedInstancesInput{})
 	if err != nil {
 		return nil, err
 	}

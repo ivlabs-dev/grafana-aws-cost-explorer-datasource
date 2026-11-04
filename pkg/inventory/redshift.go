@@ -6,6 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/aws/aws-sdk-go-v2/service/redshift/types"
+	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/awsclient"
 )
 
 const redshiftMaxPages = 100
@@ -13,15 +14,15 @@ const redshiftMaxPages = 100
 // fetchRedshift lists reserved nodes. Like RDS and ElastiCache, Redshift's
 // Describe call has no direct expiry field -- only a start time and a
 // duration in seconds -- so End is computed via endFromDuration.
-func (s *Service) fetchRedshift(ctx context.Context) ([]ReservedItem, error) {
-	if s.redshift == nil {
+func fetchRedshift(ctx context.Context, client awsclient.RedshiftReservedNodesAPI) ([]ReservedItem, error) {
+	if client == nil {
 		return nil, nil
 	}
 
 	var items []ReservedItem
 	var marker *string
 	for page := 1; page <= redshiftMaxPages; page++ {
-		output, err := s.redshift.DescribeReservedNodes(ctx, &redshift.DescribeReservedNodesInput{Marker: marker})
+		output, err := client.DescribeReservedNodes(ctx, &redshift.DescribeReservedNodesInput{Marker: marker})
 		if err != nil {
 			return nil, err
 		}

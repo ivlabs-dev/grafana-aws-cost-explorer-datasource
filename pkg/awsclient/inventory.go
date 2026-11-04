@@ -46,3 +46,22 @@ type RedshiftReservedNodesAPI interface {
 type OpenSearchReservedInstancesAPI interface {
 	DescribeReservedInstances(context.Context, *opensearch.DescribeReservedInstancesInput, ...func(*opensearch.Options)) (*opensearch.DescribeReservedInstancesOutput, error)
 }
+
+// EC2RegionsAPI is the smallest AWS EC2 interface this plugin requires to
+// discover which regions an account has enabled, so Reservation inventory
+// can optionally be gathered from every region rather than only the
+// data source's configured one.
+type EC2RegionsAPI interface {
+	DescribeRegions(context.Context, *ec2.DescribeRegionsInput, ...func(*ec2.Options)) (*ec2.DescribeRegionsOutput, error)
+}
+
+// ReservationClients groups the five regional Reservation "Describe"
+// clients. Those AWS APIs only return reservations that live in the region
+// they are called against, so the set is built once per region.
+type ReservationClients struct {
+	EC2         EC2ReservedInstancesAPI
+	RDS         RDSReservedInstancesAPI
+	ElastiCache ElastiCacheReservedNodesAPI
+	Redshift    RedshiftReservedNodesAPI
+	OpenSearch  OpenSearchReservedInstancesAPI
+}

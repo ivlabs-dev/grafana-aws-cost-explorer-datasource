@@ -221,14 +221,15 @@ query type or panel shows an AWS access-denied error (or, for Reservation
 inventory, just excludes that one service) instead of crashing or affecting
 anything else:
 
-| Action(s)                                                                                                                                                                      | Needed for                                                        |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| `ce:GetCostAndUsage`                                                                                                                                                           | **Required.** Cost and usage queries, health check                |
-| `ce:GetDimensionValues`, `ce:GetTags`                                                                                                                                          | Filter-field autocomplete (falls back to free text, no error)     |
-| `ce:GetReservationUtilization` / `ce:GetSavingsPlansUtilization`                                                                                                               | Reservation / Savings Plans utilization                           |
-| `ce:GetReservationCoverage` / `ce:GetSavingsPlansCoverage`                                                                                                                     | Reservation / Savings Plans coverage                              |
-| `ec2:DescribeReservedInstances`, `rds:DescribeReservedDBInstances`, `elasticache:DescribeReservedCacheNodes`, `redshift:DescribeReservedNodes`, `es:DescribeReservedInstances` | Reservation inventory (each independently covers its own service) |
-| `savingsplans:DescribeSavingsPlans`                                                                                                                                            | Savings Plans inventory                                           |
+| Action(s)                                                                                                                                                                      | Needed for                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `ce:GetCostAndUsage`                                                                                                                                                           | **Required.** Cost and usage queries, health check                                                           |
+| `ce:GetDimensionValues`, `ce:GetTags`                                                                                                                                          | Filter-field autocomplete (falls back to free text, no error)                                                |
+| `ce:GetReservationUtilization` / `ce:GetSavingsPlansUtilization`                                                                                                               | Reservation / Savings Plans utilization                                                                      |
+| `ce:GetReservationCoverage` / `ce:GetSavingsPlansCoverage`                                                                                                                     | Reservation / Savings Plans coverage                                                                         |
+| `ec2:DescribeReservedInstances`, `rds:DescribeReservedDBInstances`, `elasticache:DescribeReservedCacheNodes`, `redshift:DescribeReservedNodes`, `es:DescribeReservedInstances` | Reservation inventory (each independently covers its own service)                                            |
+| `ec2:DescribeRegions`                                                                                                                                                          | Optional: lets Reservation inventory query every region (falls back to the configured region, with a notice) |
+| `savingsplans:DescribeSavingsPlans`                                                                                                                                            | Savings Plans inventory                                                                                      |
 
 Cost Explorer does not provide a resource ARN for these operations, so
 `Resource` must be `"*"`. The plugin does not need or request AWS write
@@ -517,10 +518,10 @@ values.
   dimension)
 - Reservation/Savings Plans inventory reflect current state only; there is no
   historical "what did I own on date X" view
-- Reservation inventory only sees reservations in the data source's
-  configured AWS region (EC2/RDS/ElastiCache/Redshift/OpenSearch's Describe
-  calls are regional AWS APIs); no multi-region aggregation in a single
-  query -- see [Reservation and Savings Plans
+- Reservation inventory queries every region enabled for the account by
+  default (the **All regions** toggle); turning it off, or not granting
+  `ec2:DescribeRegions`, limits it to the data source's configured region --
+  see [Reservation and Savings Plans
   inventory](docs/query-types.md#reservation-and-savings-plans-inventory)
 - no "Potential monthly savings" figure for coverage -- AWS's own Coverage
   report sources that from the purchase recommendation APIs, which this
@@ -535,8 +536,7 @@ values.
 ## Roadmap
 
 Near-term priorities are alerting on Reservation/Savings Plans expiry (using
-the inventory query types' days-until-expiry field), multi-region Reservation
-inventory, purchase-recommendation integration to power a "Potential monthly
+the inventory query types' days-until-expiry field), purchase-recommendation integration to power a "Potential monthly
 savings" figure for coverage, and stronger dashboard and plugin-e2e coverage.
 Later open-source extensions may add cost forecasting, cost categories,
 optional distributed caching, and coverage/utilization grouping (e.g. by

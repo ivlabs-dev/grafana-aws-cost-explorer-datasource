@@ -160,6 +160,10 @@ type Query struct {
 	RangeMode               string      `json:"rangeMode"`
 	GroupBySubscription     bool        `json:"groupBySubscription,omitempty"`
 	UtilizationMetric       string      `json:"utilizationMetric,omitempty"`
+	// AllRegions applies only to reservationInventory queries (every other
+	// type ignores it). It defaults to true: reservations are regional, so
+	// querying just the configured region silently under-reports.
+	AllRegions *bool `json:"allRegions,omitempty"`
 }
 
 type QueryFilter struct {
@@ -405,6 +409,12 @@ func (q Query) validateInventory() error {
 		return fmt.Errorf("grouping by subscription is not supported for %q queries", q.QueryType)
 	}
 	return nil
+}
+
+// AllRegionsValue reports whether Reservation inventory should span every
+// region the account has enabled. It defaults to true when unset.
+func (q Query) AllRegionsValue() bool {
+	return q.AllRegions == nil || *q.AllRegions
 }
 
 func (q Query) IncludeOtherValue() bool {

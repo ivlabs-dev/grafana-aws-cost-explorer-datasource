@@ -17,6 +17,7 @@ import "time"
 // trusted as a literal AWS field.
 type ReservedItem struct {
 	Service      string
+	Region       string
 	ID           string
 	InstanceType string
 	Count        int32

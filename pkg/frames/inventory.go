@@ -20,6 +20,7 @@ func ConvertReservationInventory(items []inventory.ReservedItem, notices []data.
 	})
 
 	service := make([]string, 0, len(sorted))
+	region := make([]string, 0, len(sorted))
 	id := make([]string, 0, len(sorted))
 	instanceType := make([]string, 0, len(sorted))
 	count := make([]int32, 0, len(sorted))
@@ -31,6 +32,7 @@ func ConvertReservationInventory(items []inventory.ReservedItem, notices []data.
 
 	for _, item := range sorted {
 		service = append(service, item.Service)
+		region = append(region, item.Region)
 		id = append(id, item.ID)
 		instanceType = append(instanceType, item.InstanceType)
 		count = append(count, item.Count)
@@ -43,6 +45,7 @@ func ConvertReservationInventory(items []inventory.ReservedItem, notices []data.
 
 	frame := data.NewFrame("Reservations",
 		data.NewField("Service", nil, service),
+		data.NewField("Region", nil, region),
 		data.NewField("Reservation ID", nil, id),
 		data.NewField("Instance type", nil, instanceType),
 		data.NewField("Count", nil, count),

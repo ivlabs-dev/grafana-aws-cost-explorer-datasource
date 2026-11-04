@@ -101,6 +101,9 @@ export interface CostQuery extends DataQuery {
   alignMonthlyToCalendar: boolean;
   rangeMode: QueryRangeMode;
   groupBySubscription: boolean;
+  // Reservation inventory only: query every region the account has enabled
+  // (default) instead of just the data source's configured region.
+  allRegions: boolean;
   utilizationMetric:
     | ReservationUtilizationMetric
     | SavingsPlansUtilizationMetric
@@ -123,6 +126,7 @@ export const DEFAULT_QUERY: CostQuery = {
   alignMonthlyToCalendar: true,
   rangeMode: 'dashboard',
   groupBySubscription: false,
+  allRegions: true,
   utilizationMetric: 'UtilizationPercentage',
 };
 

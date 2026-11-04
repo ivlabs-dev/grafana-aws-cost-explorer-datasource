@@ -376,6 +376,21 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
         </>
       )}
 
+      {model.queryType === 'reservationInventory' && (
+        <InlineField
+          label="All regions"
+          labelWidth={18}
+          htmlFor="query-all-regions"
+          tooltip="Reservations are regional, so AWS only returns the ones in the region it is asked about. When enabled, every region enabled for the account is queried (this needs the optional ec2:DescribeRegions permission, and makes more AWS calls on a cache miss). When disabled, only the data source's configured region is queried."
+        >
+          <Switch
+            id="query-all-regions"
+            value={model.allRegions}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => update({ allRegions: event.currentTarget.checked })}
+          />
+        </InlineField>
+      )}
+
       {isInventory && (
         <Alert title="Shows current state, not the dashboard's time range" severity="info">
           This query type lists what you currently own -- it always reflects right now and ignores the dashboard&apos;s

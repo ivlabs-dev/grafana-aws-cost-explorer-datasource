@@ -6,6 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
+	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/awsclient"
 )
 
 const rdsMaxPages = 100
@@ -13,15 +14,15 @@ const rdsMaxPages = 100
 // fetchRDS lists reserved DB instances. RDS's Describe call has no direct
 // expiry field -- only a start time and a duration in seconds -- so End is
 // computed via endFromDuration.
-func (s *Service) fetchRDS(ctx context.Context) ([]ReservedItem, error) {
-	if s.rds == nil {
+func fetchRDS(ctx context.Context, client awsclient.RDSReservedInstancesAPI) ([]ReservedItem, error) {
+	if client == nil {
 		return nil, nil
 	}
 
 	var items []ReservedItem
 	var marker *string
 	for page := 1; page <= rdsMaxPages; page++ {
-		output, err := s.rds.DescribeReservedDBInstances(ctx, &rds.DescribeReservedDBInstancesInput{Marker: marker})
+		output, err := client.DescribeReservedDBInstances(ctx, &rds.DescribeReservedDBInstancesInput{Marker: marker})
 		if err != nil {
 			return nil, err
 		}

@@ -326,6 +326,26 @@ describe('QueryEditor', () => {
     expect(view.onChange).toHaveBeenLastCalledWith(expect.objectContaining({ groupBySubscription: true }));
   });
 
+  it('shows an All regions toggle, on by default, for reservation inventory only', () => {
+    const view = renderEditor({ ...DEFAULT_QUERY, queryType: 'reservationInventory' });
+
+    const toggle = screen.getByLabelText('All regions');
+    expect(toggle).toBeChecked();
+
+    fireEvent.click(toggle);
+
+    expect(view.onChange).toHaveBeenLastCalledWith(expect.objectContaining({ allRegions: false }));
+  });
+
+  it.each(['savingsPlansInventory', 'costAndUsage', 'reservationUtilization'] as const)(
+    'does not show the All regions toggle for %s',
+    (queryType) => {
+      renderEditor({ ...DEFAULT_QUERY, queryType });
+
+      expect(screen.queryByLabelText('All regions')).not.toBeInTheDocument();
+    }
+  );
+
   it.each(['reservationInventory', 'savingsPlansInventory'] as const)(
     'hides every period/format/filter field and shows the current-state alert for %s',
     (queryType) => {

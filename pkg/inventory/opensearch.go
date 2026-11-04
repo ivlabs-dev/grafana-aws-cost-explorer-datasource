@@ -6,6 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"github.com/aws/aws-sdk-go-v2/service/opensearch/types"
+	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/awsclient"
 )
 
 const openSearchMaxPages = 100
@@ -14,15 +15,15 @@ const openSearchMaxPages = 100
 // concept -- PaymentOption is the closest equivalent, so it's mapped into
 // ReservedItem.OfferingType for a consistent column across all five
 // services.
-func (s *Service) fetchOpenSearch(ctx context.Context) ([]ReservedItem, error) {
-	if s.openSearch == nil {
+func fetchOpenSearch(ctx context.Context, client awsclient.OpenSearchReservedInstancesAPI) ([]ReservedItem, error) {
+	if client == nil {
 		return nil, nil
 	}
 
 	var items []ReservedItem
 	var token *string
 	for page := 1; page <= openSearchMaxPages; page++ {
-		output, err := s.openSearch.DescribeReservedInstances(ctx, &opensearch.DescribeReservedInstancesInput{NextToken: token})
+		output, err := client.DescribeReservedInstances(ctx, &opensearch.DescribeReservedInstancesInput{NextToken: token})
 		if err != nil {
 			return nil, err
 		}

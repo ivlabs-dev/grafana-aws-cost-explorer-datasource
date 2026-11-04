@@ -53,7 +53,7 @@ func TestReservationsMergesAllServices(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	execution, err := service.Reservations(context.Background(), validSettings())
+	execution, err := service.Reservations(context.Background(), validSettings(), false)
 	if err != nil {
 		t.Fatalf("Reservations() error = %v", err)
 	}
@@ -102,7 +102,7 @@ func TestReservationsExcludesAccessDeniedServicesWithAnInfoNotice(t *testing.T) 
 		t.Fatal(err)
 	}
 
-	execution, err := service.Reservations(context.Background(), validSettings())
+	execution, err := service.Reservations(context.Background(), validSettings(), false)
 	if err != nil {
 		t.Fatalf("Reservations() error = %v", err)
 	}
@@ -137,7 +137,7 @@ func TestReservationsAllAccessDeniedIsEmptyNotHardFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	execution, err := service.Reservations(context.Background(), validSettings())
+	execution, err := service.Reservations(context.Background(), validSettings(), false)
 	if err != nil {
 		t.Fatalf("Reservations() error = %v, want a successful empty result when every service is merely unauthorized", err)
 	}
@@ -160,7 +160,7 @@ func TestReservationsAttachesNoticeForNonPermissionError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	execution, err := service.Reservations(context.Background(), validSettings())
+	execution, err := service.Reservations(context.Background(), validSettings(), false)
 	if err != nil {
 		t.Fatalf("Reservations() error = %v", err)
 	}
@@ -190,7 +190,7 @@ func TestReservationsFailsWhenAllServicesError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := service.Reservations(context.Background(), validSettings()); err == nil {
+	if _, err := service.Reservations(context.Background(), validSettings(), false); err == nil {
 		t.Fatal("expected an error when every reservation source fails")
 	}
 }
@@ -209,7 +209,7 @@ func TestReservationsFailsFastOnNonAWSError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := service.Reservations(context.Background(), validSettings()); err == nil {
+	if _, err := service.Reservations(context.Background(), validSettings(), false); err == nil {
 		t.Fatal("expected a hard failure for a non-AWS-API error")
 	}
 }
@@ -220,7 +220,7 @@ func TestReservationsNilClientsAreTreatedAsNotConfigured(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	execution, err := service.Reservations(context.Background(), validSettings())
+	execution, err := service.Reservations(context.Background(), validSettings(), false)
 	if err != nil {
 		t.Fatalf("Reservations() error = %v", err)
 	}
@@ -236,7 +236,7 @@ func TestReservationsCaches(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	first, err := service.Reservations(context.Background(), validSettings())
+	first, err := service.Reservations(context.Background(), validSettings(), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +244,7 @@ func TestReservationsCaches(t *testing.T) {
 		t.Fatalf("first call cache result = %v, want miss", first.CacheResult)
 	}
 
-	second, err := service.Reservations(context.Background(), validSettings())
+	second, err := service.Reservations(context.Background(), validSettings(), false)
 	if err != nil {
 		t.Fatal(err)
 	}
