@@ -362,7 +362,7 @@
         "type": "ivlabsdev-awscostexplorer-datasource",
         "uid": "aws-cost-explorer"
       },
-      "description": "Daily UnblendedCost for the ten highest-cost AWS services in the selected range. Tax is removed from that ranking and drawn on the right axis. Services outside the top ten are omitted so tax is not included twice.",
+      "description": "Daily UnblendedCost for every AWS service, stacked. Tax is removed from the stack and drawn as a separate line on the same axis, so it is not counted twice.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -677,10 +677,6 @@
                 }
               },
               {
-                "id": "custom.axisPlacement",
-                "value": "right"
-              },
-              {
                 "id": "custom.drawStyle",
                 "value": "line"
               },
@@ -772,7 +768,8 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "#475569"
           },
           "custom": {
             "axisBorderShow": false,
@@ -809,7 +806,144 @@
               }
             ]
           },
-          "unit": "currencyUSD"
+          "unit": "currencyUSD",
+          "mappings": [
+            {
+              "type": "regex",
+              "options": {
+                "pattern": "Savings Plans.*",
+                "result": {
+                  "color": "#6366F1"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": "Amazon Elastic Compute Cloud.*",
+                "result": {
+                  "color": "#3B82F6"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": "EC2 - Other",
+                "result": {
+                  "color": "#60A5FA"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*Relational Database.*",
+                "result": {
+                  "color": "#14B8A6"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*Redshift.*",
+                "result": {
+                  "color": "#10B981"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*Simple Storage Service.*",
+                "result": {
+                  "color": "#F59E0B"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*CloudWatch.*",
+                "result": {
+                  "color": "#C084FC"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": "AWS Config",
+                "result": {
+                  "color": "#F472B6"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*CloudFront.*",
+                "result": {
+                  "color": "#22D3EE"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": "AWS Support.*",
+                "result": {
+                  "color": "#94A3B8"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": "AWS Security Hub",
+                "result": {
+                  "color": "#FB7185"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*Load Balancing.*",
+                "result": {
+                  "color": "#0EA5E9"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*GuardDuty.*",
+                "result": {
+                  "color": "#F97316"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": ".*Kubernetes.*",
+                "result": {
+                  "color": "#8B5CF6"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": "AWS CloudTrail",
+                "result": {
+                  "color": "#FDA4AF"
+                }
+              }
+            }
+          ]
         },
         "overrides": [
           {
@@ -855,7 +989,10 @@
         "xField": "Service",
         "xTickLabelMaxLength": 40,
         "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 0
+        "xTickLabelSpacing": 0,
+        "text": {
+          "valueSize": 14
+        }
       },
       "targets": [
         {
