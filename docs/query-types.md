@@ -138,20 +138,25 @@ the query type selector and a reminder of this behavior.
   error) is also excluded, with a **Warning** notice instead. If every one
   of the five services fails for a non-permission reason, the whole query
   fails rather than silently showing an empty, misleading table.
-- **Reservation inventory is scoped to the data source's configured AWS
-  region**, unlike every other query type in this plugin. Cost Explorer and
-  the Savings Plans service are account-wide regardless of which region
-  endpoint a request hits, but EC2/RDS/ElastiCache/Redshift/OpenSearch's
-  `Describe*ReservedInstances`/`DescribeReservedDBInstances`/etc. calls are
-  ordinary regional service APIs — they only return reservations that live
-  in that one region, the same way `DescribeInstances` only lists instances
-  in the region you call it against. A real reservation purchased in a
-  different region than the data source's configured region won't appear,
-  with no error (AWS correctly reports "none in this region"). If your
-  reservations span multiple regions, either configure a separate data
-  source per region or duplicate the relevant dashboard panel. Multi-region
-  support in a single query is on the [Roadmap](../README.md#roadmap), not
-  built yet.
+- **Reservation inventory can span every region.** Cost Explorer and the
+  Savings Plans service are account-wide, but EC2/RDS/ElastiCache/Redshift/
+  OpenSearch's `Describe*Reserved*` calls are ordinary regional APIs: they
+  only return reservations in the region they're called against. The
+  **All regions** toggle (on by default) therefore lists the regions
+  enabled for the account with `ec2:DescribeRegions` and queries all five
+  services in each, merging everything into one table with a **Region**
+  column. Turn it off to query only the data source's configured region.
+  - `ec2:DescribeRegions` is optional. If it isn't granted, the query falls
+    back to the configured region and shows an **Info** notice saying so.
+  - Calls run concurrently (capped), and the result is cached like every
+    other query, so the extra calls only happen on a cache miss. An
+    all-regions query is up to about 5 calls per region.
+  - A service that is denied or fails in only some regions (for example a
+    region blocked by an SCP) is reported in a notice that names those
+    regions; the remaining regions still return their reservations.
+  - The all-regions and configured-region-only results are cached
+    separately.
+  - Savings Plans inventory is unaffected: it is already account-wide.
 - The bundled dashboard's **Reservations** and **Savings Plans** panels
   apply a "Filter data by values" transformation that excludes rows whose
   `State` is `retired`, so expired/returned reservations and Savings Plans

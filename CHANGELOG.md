@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Reservation inventory can now list reservations from every region enabled
+  for the account, not just the data source's configured region. A new
+  **All regions** toggle in the query editor (on by default) controls it;
+  turning it off restores the previous configured-region-only behavior.
+  Results gain a **Region** column. Region discovery uses the new optional
+  `ec2:DescribeRegions` permission (added to the example IAM policies); if it
+  isn't granted the query falls back to the configured region with a notice.
+  Existing Reservation inventory panels pick up the new default, so they may
+  show more rows and make more AWS calls on a cache miss.
+
 ## 1.1.2 (2026-10-29)
 
 - Fix the two HIGH `gosec` findings (G115, integer overflow conversion)

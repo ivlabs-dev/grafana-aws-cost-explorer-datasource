@@ -41,7 +41,13 @@ type Bundle struct {
 	ElastiCacheReservations ElastiCacheReservedNodesAPI
 	RedshiftReservations    RedshiftReservedNodesAPI
 	OpenSearchReservations  OpenSearchReservedInstancesAPI
-	ResolveCredentials      func(context.Context) error
+	// Regions lists the regions enabled for the account. Together with
+	// ReservationClientsForRegion it lets Reservation inventory span every
+	// region. Either may be nil, in which case only the configured region
+	// (the *Reservations clients above) can be queried.
+	Regions                     EC2RegionsAPI
+	ReservationClientsForRegion func(region string) ReservationClients
+	ResolveCredentials          func(context.Context) error
 }
 
 type Factory interface {
@@ -69,7 +75,17 @@ func (f *SDKFactory) New(ctx context.Context, settings models.PluginSettings) (*
 			ElastiCacheReservations: awsmock.ElastiCacheClient{},
 			RedshiftReservations:    awsmock.RedshiftClient{},
 			OpenSearchReservations:  awsmock.OpenSearchClient{},
-			ResolveCredentials:      awsmock.ResolveCredentials,
+			Regions:                 awsmock.RegionsClient{},
+			ReservationClientsForRegion: func(region string) ReservationClients {
+				return ReservationClients{
+					EC2:         awsmock.EC2Client{Region: region},
+					RDS:         awsmock.RDSClient{Region: region},
+					ElastiCache: awsmock.ElastiCacheClient{Region: region},
+					Redshift:    awsmock.RedshiftClient{Region: region},
+					OpenSearch:  awsmock.OpenSearchClient{Region: region},
+				}
+			},
+			ResolveCredentials: awsmock.ResolveCredentials,
 		}, nil
 	}
 
@@ -114,6 +130,18 @@ func (f *SDKFactory) New(ctx context.Context, settings models.PluginSettings) (*
 		ElastiCacheReservations: elasticache.NewFromConfig(awsConfig),
 		RedshiftReservations:    redshift.NewFromConfig(awsConfig),
 		OpenSearchReservations:  opensearch.NewFromConfig(awsConfig),
+		Regions:                 ec2.NewFromConfig(awsConfig),
+		ReservationClientsForRegion: func(region string) ReservationClients {
+			regional := awsConfig.Copy()
+			regional.Region = region
+			return ReservationClients{
+				EC2:         ec2.NewFromConfig(regional),
+				RDS:         rds.NewFromConfig(regional),
+				ElastiCache: elasticache.NewFromConfig(regional),
+				Redshift:    redshift.NewFromConfig(regional),
+				OpenSearch:  opensearch.NewFromConfig(regional),
+			}
+		},
 		ResolveCredentials: func(resolveContext context.Context) error {
 			if _, resolveErr := awsConfig.Credentials.Retrieve(resolveContext); resolveErr != nil {
 				return fmt.Errorf("resolve AWS credentials: %w", resolveErr)

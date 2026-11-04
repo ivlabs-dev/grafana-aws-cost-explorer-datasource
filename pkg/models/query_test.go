@@ -495,3 +495,26 @@ func TestCostExplorerDateRangeKeepsMidnightEndExclusive(t *testing.T) {
 		t.Fatalf("got exclusive end %s, want 2026-07-03", got.End)
 	}
 }
+
+func TestAllRegionsValueDefaultsToTrue(t *testing.T) {
+	if !(Query{}).AllRegionsValue() {
+		t.Fatal("AllRegionsValue() = false for an unset field, want true")
+	}
+	off := false
+	if (Query{AllRegions: &off}).AllRegionsValue() {
+		t.Fatal("AllRegionsValue() = true for an explicit false, want false")
+	}
+	on := true
+	if !(Query{AllRegions: &on}).AllRegionsValue() {
+		t.Fatal("AllRegionsValue() = false for an explicit true, want true")
+	}
+}
+
+func TestAllRegionsIsAcceptedOnInventoryQueries(t *testing.T) {
+	off := false
+	query := Query{QueryType: QueryTypeReservationInventory, AllRegions: &off}
+	query.ApplyDefaults()
+	if err := query.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}

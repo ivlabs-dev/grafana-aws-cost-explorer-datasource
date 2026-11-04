@@ -26,12 +26,31 @@ import (
 // excluded from the merged list rather than failing the whole query.
 type Service struct {
 	savingsPlans awsclient.SavingsPlansAPI
-	ec2          awsclient.EC2ReservedInstancesAPI
-	rds          awsclient.RDSReservedInstancesAPI
-	elastiCache  awsclient.ElastiCacheReservedNodesAPI
-	redshift     awsclient.RedshiftReservedNodesAPI
-	openSearch   awsclient.OpenSearchReservedInstancesAPI
-	cache        cache.Cache
+	// home holds the reservation clients for the data source's configured
+	// region. They are always used for that region, whatever the query's
+	// all-regions setting.
+	home awsclient.ReservationClients
+	// regions and clientsForRegion are optional. Without them, an
+	// all-regions query degrades to the configured region only.
+	regions          awsclient.EC2RegionsAPI
+	clientsForRegion func(region string) awsclient.ReservationClients
+	cache            cache.Cache
+}
+
+// Option customizes a Service at construction.
+type Option func(*Service)
+
+// WithRegionalReservations enables all-regions Reservation inventory:
+// regions discovers the account's enabled regions, and clientsForRegion
+// builds the five reservation clients for any one of them.
+func WithRegionalReservations(
+	regions awsclient.EC2RegionsAPI,
+	clientsForRegion func(region string) awsclient.ReservationClients,
+) Option {
+	return func(s *Service) {
+		s.regions = regions
+		s.clientsForRegion = clientsForRegion
+	}
 }
 
 func NewService(
@@ -42,19 +61,26 @@ func NewService(
 	redshiftClient awsclient.RedshiftReservedNodesAPI,
 	openSearchClient awsclient.OpenSearchReservedInstancesAPI,
 	resultCache cache.Cache,
+	options ...Option,
 ) (*Service, error) {
 	if resultCache == nil {
 		return nil, fmt.Errorf("cache must not be nil")
 	}
-	return &Service{
+	service := &Service{
 		savingsPlans: savingsPlans,
-		ec2:          ec2Client,
-		rds:          rdsClient,
-		elastiCache:  elastiCacheClient,
-		redshift:     redshiftClient,
-		openSearch:   openSearchClient,
-		cache:        resultCache,
-	}, nil
+		home: awsclient.ReservationClients{
+			EC2:         ec2Client,
+			RDS:         rdsClient,
+			ElastiCache: elastiCacheClient,
+			Redshift:    redshiftClient,
+			OpenSearch:  openSearchClient,
+		},
+		cache: resultCache,
+	}
+	for _, option := range options {
+		option(service)
+	}
+	return service, nil
 }
 
 // Execution carries the same cache/timing facts as

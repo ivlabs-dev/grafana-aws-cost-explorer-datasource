@@ -103,6 +103,7 @@ func newDatasource(
 		bundle.RedshiftReservations,
 		bundle.OpenSearchReservations,
 		resultCache,
+		inventory.WithRegionalReservations(bundle.Regions, bundle.ReservationClientsForRegion),
 	)
 	if err != nil {
 		datasource.initializationErr = err
@@ -150,7 +151,7 @@ func (d *Datasource) query(ctx context.Context, query backend.DataQuery) backend
 	// rather than just ignoring the result of it.
 	switch model.QueryType {
 	case models.QueryTypeReservationInventory:
-		return d.queryReservationInventory(ctx, query, started, logger)
+		return d.queryReservationInventory(ctx, query, model, started, logger)
 	case models.QueryTypeSavingsPlansInventory:
 		return d.querySavingsPlansInventory(ctx, query, started, logger)
 	}
@@ -676,13 +677,14 @@ func (d *Datasource) querySavingsPlansCoverage(
 func (d *Datasource) queryReservationInventory(
 	ctx context.Context,
 	query backend.DataQuery,
+	model models.Query,
 	started time.Time,
 	logger log.Logger,
 ) backend.DataResponse {
 	awsContext, cancel := context.WithTimeout(ctx, awsRequestTimeout)
 	defer cancel()
 
-	execution, err := d.inventoryService.Reservations(awsContext, d.settings)
+	execution, err := d.inventoryService.Reservations(awsContext, d.settings, model.AllRegionsValue())
 	completedAt := d.now()
 	metadata := NewQueryExecutionMetadata(
 		reservationInventoryMetadataExecution(execution),

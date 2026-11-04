@@ -18,6 +18,7 @@
       "Effect": "Allow",
       "Action": [
         "ec2:DescribeReservedInstances",
+        "ec2:DescribeRegions",
         "rds:DescribeReservedDBInstances",
         "elasticache:DescribeReservedCacheNodes",
         "redshift:DescribeReservedNodes",

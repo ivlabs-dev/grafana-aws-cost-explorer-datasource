@@ -67,13 +67,36 @@ func (SavingsPlansClient) DescribeSavingsPlans(
 	}, nil
 }
 
-type EC2Client struct{}
+// The reservation mock clients take an optional Region. Empty or us-east-1
+// returns the primary fixture below; eu-west-1 returns one extra
+// reservation so all-regions inventory visibly merges more than one region;
+// every other region is empty, as most accounts' regions are.
+func inMockPrimaryRegion(region string) bool { return region == "" || region == "us-east-1" }
 
-func (EC2Client) DescribeReservedInstances(
+type EC2Client struct{ Region string }
+
+func (c EC2Client) DescribeReservedInstances(
 	_ context.Context,
 	_ *ec2.DescribeReservedInstancesInput,
 	_ ...func(*ec2.Options),
 ) (*ec2.DescribeReservedInstancesOutput, error) {
+	if c.Region == "eu-west-1" {
+		start, end := daysFromNow(-100), daysFromNow(265)
+		return &ec2.DescribeReservedInstancesOutput{
+			ReservedInstances: []ec2types.ReservedInstances{{
+				ReservedInstancesId: aws.String("ri-mock-eu-west-1-0a1b2c3d4"),
+				InstanceType:        ec2types.InstanceTypeC5Xlarge,
+				InstanceCount:       aws.Int32(6),
+				OfferingType:        ec2types.OfferingTypeValuesPartialUpfront,
+				State:               ec2types.ReservedInstanceStateActive,
+				Start:               &start,
+				End:                 &end,
+			}},
+		}, nil
+	}
+	if !inMockPrimaryRegion(c.Region) {
+		return &ec2.DescribeReservedInstancesOutput{}, nil
+	}
 	start1, end1 := daysFromNow(-200), daysFromNow(165)
 	start2, end2 := daysFromNow(-500), daysFromNow(-135)
 	return &ec2.DescribeReservedInstancesOutput{
@@ -100,13 +123,16 @@ func (EC2Client) DescribeReservedInstances(
 	}, nil
 }
 
-type RDSClient struct{}
+type RDSClient struct{ Region string }
 
-func (RDSClient) DescribeReservedDBInstances(
+func (c RDSClient) DescribeReservedDBInstances(
 	_ context.Context,
 	_ *rds.DescribeReservedDBInstancesInput,
 	_ ...func(*rds.Options),
 ) (*rds.DescribeReservedDBInstancesOutput, error) {
+	if !inMockPrimaryRegion(c.Region) {
+		return &rds.DescribeReservedDBInstancesOutput{}, nil
+	}
 	start := daysFromNow(-150)
 	return &rds.DescribeReservedDBInstancesOutput{
 		ReservedDBInstances: []rdstypes.ReservedDBInstance{
@@ -123,13 +149,16 @@ func (RDSClient) DescribeReservedDBInstances(
 	}, nil
 }
 
-type ElastiCacheClient struct{}
+type ElastiCacheClient struct{ Region string }
 
-func (ElastiCacheClient) DescribeReservedCacheNodes(
+func (c ElastiCacheClient) DescribeReservedCacheNodes(
 	_ context.Context,
 	_ *elasticache.DescribeReservedCacheNodesInput,
 	_ ...func(*elasticache.Options),
 ) (*elasticache.DescribeReservedCacheNodesOutput, error) {
+	if !inMockPrimaryRegion(c.Region) {
+		return &elasticache.DescribeReservedCacheNodesOutput{}, nil
+	}
 	start := daysFromNow(-60)
 	return &elasticache.DescribeReservedCacheNodesOutput{
 		ReservedCacheNodes: []ectypes.ReservedCacheNode{
@@ -146,13 +175,16 @@ func (ElastiCacheClient) DescribeReservedCacheNodes(
 	}, nil
 }
 
-type RedshiftClient struct{}
+type RedshiftClient struct{ Region string }
 
-func (RedshiftClient) DescribeReservedNodes(
+func (c RedshiftClient) DescribeReservedNodes(
 	_ context.Context,
 	_ *redshift.DescribeReservedNodesInput,
 	_ ...func(*redshift.Options),
 ) (*redshift.DescribeReservedNodesOutput, error) {
+	if !inMockPrimaryRegion(c.Region) {
+		return &redshift.DescribeReservedNodesOutput{}, nil
+	}
 	start := daysFromNow(-20)
 	return &redshift.DescribeReservedNodesOutput{
 		ReservedNodes: []rstypes.ReservedNode{
@@ -169,13 +201,16 @@ func (RedshiftClient) DescribeReservedNodes(
 	}, nil
 }
 
-type OpenSearchClient struct{}
+type OpenSearchClient struct{ Region string }
 
-func (OpenSearchClient) DescribeReservedInstances(
+func (c OpenSearchClient) DescribeReservedInstances(
 	_ context.Context,
 	_ *opensearch.DescribeReservedInstancesInput,
 	_ ...func(*opensearch.Options),
 ) (*opensearch.DescribeReservedInstancesOutput, error) {
+	if !inMockPrimaryRegion(c.Region) {
+		return &opensearch.DescribeReservedInstancesOutput{}, nil
+	}
 	start := daysFromNow(-90)
 	return &opensearch.DescribeReservedInstancesOutput{
 		ReservedInstances: []ostypes.ReservedInstance{
@@ -194,4 +229,20 @@ func (OpenSearchClient) DescribeReservedInstances(
 
 func rfc3339(t time.Time) *string {
 	return aws.String(t.Format(time.RFC3339))
+}
+
+// RegionsClient is a mock EC2 DescribeRegions returning the same small
+// region set the mock Cost Explorer REGION dimension uses.
+type RegionsClient struct{}
+
+func (RegionsClient) DescribeRegions(
+	_ context.Context,
+	_ *ec2.DescribeRegionsInput,
+	_ ...func(*ec2.Options),
+) (*ec2.DescribeRegionsOutput, error) {
+	regions := make([]ec2types.Region, 0, len(mockRegions))
+	for _, name := range mockRegions {
+		regions = append(regions, ec2types.Region{RegionName: aws.String(name)})
+	}
+	return &ec2.DescribeRegionsOutput{Regions: regions}, nil
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	"github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource/pkg/awsclient"
 )
 
 const elastiCacheMaxPages = 100
@@ -13,15 +14,15 @@ const elastiCacheMaxPages = 100
 // fetchElastiCache lists reserved cache nodes. Like RDS, ElastiCache's
 // Describe call has no direct expiry field -- only a start time and a
 // duration in seconds -- so End is computed via endFromDuration.
-func (s *Service) fetchElastiCache(ctx context.Context) ([]ReservedItem, error) {
-	if s.elastiCache == nil {
+func fetchElastiCache(ctx context.Context, client awsclient.ElastiCacheReservedNodesAPI) ([]ReservedItem, error) {
+	if client == nil {
 		return nil, nil
 	}
 
 	var items []ReservedItem
 	var marker *string
 	for page := 1; page <= elastiCacheMaxPages; page++ {
-		output, err := s.elastiCache.DescribeReservedCacheNodes(ctx, &elasticache.DescribeReservedCacheNodesInput{Marker: marker})
+		output, err := client.DescribeReservedCacheNodes(ctx, &elasticache.DescribeReservedCacheNodesInput{Marker: marker})
 		if err != nil {
 			return nil, err
 		}
