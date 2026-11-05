@@ -1138,6 +1138,25 @@
             "type": "exclude",
             "match": "any"
           }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {
+              "Service": 0,
+              "Reservation ID": 1,
+              "Instance type": 2,
+              "Count": 3,
+              "State": 4,
+              "Days until expiry": 5,
+              "Start": 6,
+              "End": 7,
+              "Offering type": 8,
+              "Region": 9
+            },
+            "renameByName": {}
+          }
         }
       ]
     },
@@ -1188,6 +1207,24 @@
             ],
             "type": "exclude",
             "match": "any"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {
+              "Savings Plan ID": 0,
+              "Type": 1,
+              "Commitment": 2,
+              "State": 3,
+              "Days until expiry": 4,
+              "Start": 5,
+              "End": 6,
+              "Payment option": 7,
+              "Region": 8
+            },
+            "renameByName": {}
           }
         }
       ]
