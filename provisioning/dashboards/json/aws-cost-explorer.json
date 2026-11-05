@@ -1047,10 +1047,57 @@
         "type": "ivlabsdev-awscostexplorer-datasource",
         "uid": "aws-cost-explorer"
       },
-      "description": "Every Reservation this account owns across EC2, RDS, ElastiCache, Redshift, and OpenSearch, sorted by days until expiry. This reflects current state, not the dashboard's selected time range. Each service's permission is optional and independent: a service without its Describe permission is silently excluded, and a service that fails for another reason is excluded with a warning notice rather than failing the whole panel. Needs the optional ec2:DescribeReservedInstances, rds:DescribeReservedDBInstances, elasticache:DescribeReservedCacheNodes, redshift:DescribeReservedNodes, and es:DescribeReservedInstances IAM permissions.",
+      "description": "Every Reservation this account owns across EC2, RDS, ElastiCache, Redshift, and OpenSearch, sorted by days until expiry. This reflects current state, not the dashboard's selected time range. Each service's permission is optional and independent: a service without its Describe permission is silently excluded, and a service that fails for another reason is excluded with a warning notice rather than failing the whole panel. Needs the optional ec2:DescribeReservedInstances, rds:DescribeReservedDBInstances, elasticache:DescribeReservedCacheNodes, redshift:DescribeReservedNodes, and es:DescribeReservedInstances IAM permissions. Rows are shaded by days until expiry: red under 30 days, amber under 90, and slate once past the end date.",
       "fieldConfig": {
         "defaults": {},
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Days until expiry"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic",
+                  "applyToRow": true
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#334155",
+                      "value": null
+                    },
+                    {
+                      "color": "#991B1B",
+                      "value": 0
+                    },
+                    {
+                      "color": "#92400E",
+                      "value": 30
+                    },
+                    {
+                      "color": "transparent",
+                      "value": 90
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -1090,6 +1137,25 @@
             "type": "exclude",
             "match": "any"
           }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {
+              "Service": 0,
+              "Reservation ID": 1,
+              "Instance type": 2,
+              "Count": 3,
+              "State": 4,
+              "Days until expiry": 5,
+              "Start": 6,
+              "End": 7,
+              "Offering type": 8,
+              "Region": 9
+            },
+            "renameByName": {}
+          }
         }
       ]
     },
@@ -1098,10 +1164,57 @@
         "type": "ivlabsdev-awscostexplorer-datasource",
         "uid": "aws-cost-explorer"
       },
-      "description": "Every Savings Plan this account owns, sorted by days until expiry. This reflects current state, not the dashboard's selected time range. Needs the optional savingsplans:DescribeSavingsPlans IAM permission; without it this panel shows an error.",
+      "description": "Every Savings Plan this account owns, sorted by days until expiry. This reflects current state, not the dashboard's selected time range. Needs the optional savingsplans:DescribeSavingsPlans IAM permission; without it this panel shows an error. Rows are shaded by days until expiry: red under 30 days, amber under 90, and slate once past the end date.",
       "fieldConfig": {
         "defaults": {},
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Days until expiry"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic",
+                  "applyToRow": true
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#334155",
+                      "value": null
+                    },
+                    {
+                      "color": "#991B1B",
+                      "value": 0
+                    },
+                    {
+                      "color": "#92400E",
+                      "value": 30
+                    },
+                    {
+                      "color": "transparent",
+                      "value": 90
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -1140,6 +1253,24 @@
             ],
             "type": "exclude",
             "match": "any"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {
+              "Savings Plan ID": 0,
+              "Type": 1,
+              "Commitment": 2,
+              "State": 3,
+              "Days until expiry": 4,
+              "Start": 5,
+              "End": 6,
+              "Payment option": 7,
+              "Region": 8
+            },
+            "renameByName": {}
           }
         }
       ]
