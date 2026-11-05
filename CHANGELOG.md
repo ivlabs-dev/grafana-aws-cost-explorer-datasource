@@ -11,6 +11,11 @@
   isn't granted the query falls back to the configured region with a notice.
   Existing Reservation inventory panels pick up the new default, so they may
   show more rows and make more AWS calls on a cache miss.
+- The bundled and provisioned example dashboards' **Reservations** and
+  **Savings Plans** tables now put identity, state, and days until expiry
+  first (offering type / payment option and region last), and shade each row
+  by days until expiry: red under 30 days, amber under 90, slate once past
+  the end date. The data frames themselves are unchanged.
 
 ## 1.1.2 (2026-10-29)
 
