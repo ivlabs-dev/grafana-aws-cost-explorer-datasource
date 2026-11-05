@@ -74,18 +74,18 @@ All screenshots are captured against the built-in **Mock data** mode, so they
 show synthetic example data -- no real account IDs, spend, or credentials.
 
 - Data-source authentication and cache configuration (Mock data mode shown):
-  ![Data source configuration](docs/screenshots/aws-cost-explorer-datasource-config.png)
+  ![Data source configuration](src/img/aws-cost-explorer-datasource-config.png)
 - Visual Cost Explorer query editor:
-  ![Cost Explorer query editor](docs/screenshots/aws-cost-explorer-query-editor.png)
+  ![Cost Explorer query editor](src/img/aws-cost-explorer-query-editor.png)
 - Reservation utilization query editor:
-  ![Reservation utilization query editor](docs/screenshots/aws-cost-explorer-query-editor-reservations.png)
+  ![Reservation utilization query editor](src/img/aws-cost-explorer-query-editor-reservations.png)
 - Example FinOps dashboard with summary KPIs:
-  ![AWS Cost Explorer dashboard](docs/screenshots/aws-cost-explorer-dashboard.png)
+  ![AWS Cost Explorer dashboard](src/img/aws-cost-explorer-dashboard.png)
 - Reservation/Savings Plans utilization-vs-coverage trend charts and
   inventory tables:
-  ![Reservation and Savings Plans utilization, coverage, and inventory](docs/screenshots/aws-cost-explorer-reservations-savings-plans.png)
+  ![Reservation and Savings Plans utilization, coverage, and inventory](src/img/aws-cost-explorer-reservations-savings-plans.png)
 - Query Inspector cache and freshness metadata:
-  ![Query Inspector metadata](docs/screenshots/aws-cost-explorer-query-inspector.png)
+  ![Query Inspector metadata](src/img/aws-cost-explorer-query-inspector.png)
 
 ## Requirements
 
