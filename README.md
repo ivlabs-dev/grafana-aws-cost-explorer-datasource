@@ -79,6 +79,8 @@ show synthetic example data -- no real account IDs, spend, or credentials.
   ![Cost Explorer query editor](src/img/aws-cost-explorer-query-editor.png)
 - Reservation utilization query editor:
   ![Reservation utilization query editor](src/img/aws-cost-explorer-query-editor-reservations.png)
+- Reservation inventory query editor with the **All regions** switch:
+  ![Reservation inventory query editor](src/img/aws-cost-explorer-query-editor-reservation-inventory.png)
 - Example FinOps dashboard with summary KPIs:
   ![AWS Cost Explorer dashboard](src/img/aws-cost-explorer-dashboard.png)
 - Reservation/Savings Plans utilization-vs-coverage trend charts and
