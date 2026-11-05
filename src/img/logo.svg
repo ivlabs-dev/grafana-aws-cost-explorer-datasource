@@ -1,1 +1,75 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 81.9 71.52"><defs><style>.cls-1{fill:#84aff1;}.cls-2{fill:#3865ab;}.cls-3{fill:url(#linear-gradient);}</style><linearGradient id="linear-gradient" x1="42.95" y1="16.88" x2="81.9" y2="16.88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f2cc0c"/><stop offset="1" stop-color="#ff9830"/></linearGradient></defs><g id="Layer_2" data-name="Layer 2"><g id="Layer_1-2" data-name="Layer 1"><path class="cls-1" d="M55.46,62.43A2,2,0,0,1,54.07,59l4.72-4.54a2,2,0,0,1,2.2-.39l3.65,1.63,3.68-3.64a2,2,0,1,1,2.81,2.84l-4.64,4.6a2,2,0,0,1-2.22.41L60.6,58.26l-3.76,3.61A2,2,0,0,1,55.46,62.43Z"/><path class="cls-2" d="M37,0H2A2,2,0,0,0,0,2V31.76a2,2,0,0,0,2,2H37a2,2,0,0,0,2-2V2A2,2,0,0,0,37,0ZM4,29.76V8.84H35V29.76Z"/><path class="cls-3" d="M79.9,0H45a2,2,0,0,0-2,2V31.76a2,2,0,0,0,2,2h35a2,2,0,0,0,2-2V2A2,2,0,0,0,79.9,0ZM47,29.76V8.84h31V29.76Z"/><path class="cls-2" d="M37,37.76H2a2,2,0,0,0-2,2V69.52a2,2,0,0,0,2,2H37a2,2,0,0,0,2-2V39.76A2,2,0,0,0,37,37.76ZM4,67.52V46.6H35V67.52Z"/><path class="cls-2" d="M79.9,37.76H45a2,2,0,0,0-2,2V69.52a2,2,0,0,0,2,2h35a2,2,0,0,0,2-2V39.76A2,2,0,0,0,79.9,37.76ZM47,67.52V46.6h31V67.52Z"/><rect class="cls-1" x="10.48" y="56.95" width="4" height="5.79"/><rect class="cls-1" x="17.43" y="53.95" width="4" height="8.79"/><rect class="cls-1" x="24.47" y="50.95" width="4" height="11.79"/><path class="cls-1" d="M19.47,25.8a6.93,6.93,0,1,1,6.93-6.92A6.93,6.93,0,0,1,19.47,25.8Zm0-9.85a2.93,2.93,0,1,0,2.93,2.93A2.93,2.93,0,0,0,19.47,16Z"/></g></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Cost analytics icon</title>
+  <desc id="desc">A green financial analytics chart with a rising line graph and a magnifying glass over a dollar coin.</desc>
+  <defs>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="0.9">
+      <stop offset="0" stop-color="#9aaabd"/>
+      <stop offset=".34" stop-color="#4ac69a"/>
+      <stop offset=".72" stop-color="#23d78b"/>
+      <stop offset="1" stop-color="#a4ff69"/>
+    </linearGradient>
+    <linearGradient id="line" x1=".1" y1=".9" x2=".9" y2=".1">
+      <stop offset="0" stop-color="#d1f94c"/>
+      <stop offset=".5" stop-color="#69ed72"/>
+      <stop offset="1" stop-color="#39dc8a"/>
+    </linearGradient>
+    <linearGradient id="coin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d9ff62"/>
+      <stop offset=".48" stop-color="#75e95b"/>
+      <stop offset="1" stop-color="#13c98c"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#20b878" stop-opacity=".82"/>
+      <stop offset="1" stop-color="#087b66" stop-opacity=".18"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#9cabbc"/>
+    </linearGradient>
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0" stop-color="#151d27"/>
+      <stop offset="1" stop-color="#090e14"/>
+    </radialGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+  </defs>
+
+  <!-- dark rounded tile -->
+  <rect width="1024" height="1024" rx="120" fill="url(#bg)"/>
+  <rect x="100" y="100" width="824" height="824" rx="112" fill="none" stroke="#071018" stroke-width="18" opacity=".65"/>
+  <rect x="104" y="104" width="816" height="816" rx="108" fill="none" stroke="url(#frame)" stroke-width="26"/>
+
+  <!-- subtle chart bars -->
+  <g fill="url(#bar)">
+    <rect x="222" y="514" width="64" height="278" rx="16"/>
+    <rect x="308" y="592" width="66" height="200" rx="16" opacity=".76"/>
+    <rect x="392" y="308" width="70" height="484" rx="17" opacity=".82"/>
+    <rect x="480" y="360" width="48" height="432" rx="15" opacity=".55"/>
+    <rect x="566" y="218" width="78" height="574" rx="18"/>
+    <rect x="670" y="380" width="70" height="412" rx="17" opacity=".68"/>
+    <rect x="784" y="300" width="78" height="492" rx="18" opacity=".82"/>
+  </g>
+
+  <!-- trend line -->
+  <path d="M 298 428 L 424 500 L 596 302 L 776 202" fill="none" stroke="#06131a" stroke-width="27" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>
+  <path d="M 298 428 L 424 500 L 596 302 L 776 202" fill="none" stroke="url(#line)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#09232a" stroke="#f4f7f8" stroke-width="16">
+    <circle cx="298" cy="428" r="48"/>
+    <circle cx="424" cy="500" r="48"/>
+    <circle cx="596" cy="302" r="48"/>
+    <circle cx="776" cy="202" r="48"/>
+  </g>
+
+  <!-- magnifying glass and coin -->
+  <circle cx="654" cy="588" r="181" fill="#050b11" opacity=".55" filter="url(#softShadow)"/>
+  <path d="M 760 725 L 852 817" fill="none" stroke="#070d13" stroke-width="92" stroke-linecap="round"/>
+  <path d="M 760 725 L 852 817" fill="none" stroke="url(#glass)" stroke-width="76" stroke-linecap="round"/>
+  <circle cx="650" cy="584" r="178" fill="#0b121b" stroke="url(#glass)" stroke-width="22"/>
+  <circle cx="650" cy="584" r="111" fill="url(#coin)"/>
+  <circle cx="650" cy="584" r="111" fill="none" stroke="#e1ff9a" stroke-width="5" opacity=".65"/>
+  <path d="M 650 530 V 638 M 685 550 C 674 530 650 526 632 535 C 606 548 614 576 645 584 C 676 592 690 609 672 630 C 653 651 620 644 608 625" fill="none" stroke="#092027" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- crisp inner edge highlight -->
+  <rect x="116" y="116" width="792" height="792" rx="98" fill="none" stroke="#d4e2ed" stroke-width="3" opacity=".16"/>
+</svg>

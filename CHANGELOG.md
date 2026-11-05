@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- New plugin logo (a cost chart with a magnifier over a dollar coin), shown in
+  the Grafana data source lists and the plugin catalog once released. It
+  replaces `src/img/logo.svg` (a 4 KB vector), so `plugin.json` is unchanged.
 - Reservation inventory can now list reservations from every region enabled
   for the account, not just the data source's configured region. A new
   **All regions** toggle in the query editor (on by default) controls it;
