@@ -55,6 +55,13 @@ this plugin's `pluginId`) and `__requires` (this datasource plus every panel
 type used and the Grafana version), and point every panel/target
 `datasource.uid` at `"${DS_AWS_COST_EXPLORER}"` instead of a real uid.
 
+## Screenshots
+
+All screenshots live in `src/img/*.png`. That one folder is both what
+`src/plugin.json` ships to the plugin catalog and what the README links to,
+so there is no second copy to keep in sync. Capture against the **Mock data**
+auth mode so no real account data ends up in a screenshot.
+
 ## Before committing or opening a PR
 
 CI's "Build, lint and unit tests" job runs `npm run format:check`, which
