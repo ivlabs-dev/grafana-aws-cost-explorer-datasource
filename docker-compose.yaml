@@ -4,6 +4,10 @@ services:
       file: .config/docker-compose-base.yaml
       service: grafana
     environment:
+      # Defaults to the built-in synthetic data, so a fresh `docker compose up`
+      # works with no AWS account. Set to `static` (and export AWS credentials)
+      # to query a real account.
+      AWS_COST_EXPLORER_AUTH_MODE: ${AWS_COST_EXPLORER_AUTH_MODE:-mock}
       AWS_REGION: ${AWS_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}

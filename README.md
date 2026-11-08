@@ -124,10 +124,14 @@ Open <http://localhost:3000>, sign in as the development administrator, open
 The development container explicitly allows this unsigned plugin. Restart
 Grafana after changing `src/plugin.json`.
 
-The provisioned development data source copies AWS environment variables into
-Grafana `secureJsonData`. Export `AWS_ACCESS_KEY_ID`,
-`AWS_SECRET_ACCESS_KEY`, and optional `AWS_SESSION_TOKEN` before starting
-Compose. Do not commit those values.
+The provisioned development data source uses the built-in **Mock data** mode
+by default, so `docker compose up` works from a fresh checkout with no AWS
+account: the example dashboard shows synthetic data and two example alert
+rules (Reservation and Savings Plans expiry) evaluate against it. To query a
+real account instead, export `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and
+optional `AWS_SESSION_TOKEN`, set `AWS_COST_EXPLORER_AUTH_MODE=static`, and
+start Compose; the credentials are copied into Grafana `secureJsonData`. Do
+not commit those values.
 
 ## Installation
 

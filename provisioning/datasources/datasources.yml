@@ -10,7 +10,7 @@ datasources:
     version: 1
     editable: true
     jsonData:
-      authMode: 'static'
+      authMode: '$AWS_COST_EXPLORER_AUTH_MODE'
       region: 'us-east-1'
       cacheTTLSeconds: 900
       cacheMaxEntries: 256

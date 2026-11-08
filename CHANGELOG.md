@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- The local `docker compose` environment now provisions the data source in
+  **Mock data** mode by default, so it works from a fresh checkout without an
+  AWS account, and provisions two example alert rules for Reservation and
+  Savings Plans expiry. Set `AWS_COST_EXPLORER_AUTH_MODE=static` and export AWS
+  credentials to query a real account as before.
+- Update the AWS SDK for Go v2 modules and other Go dependencies to their
+  latest releases, and update `webpack-cli`, `@swc/core`, `@swc/helpers`,
+  `sass`, and `semver` within their existing ranges. No behavior change.
 - New plugin logo (a cost chart with a magnifier over a dollar coin), shown in
   the Grafana data source lists and the plugin catalog once released. It
   replaces `src/img/logo.svg` (a 4 KB vector), so `plugin.json` is unchanged.
