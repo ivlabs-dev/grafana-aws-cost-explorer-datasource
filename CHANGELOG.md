@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 (2026-11-08)
 
 - The local `docker compose` environment now provisions the data source in
   **Mock data** mode by default, so it works from a fresh checkout without an
