@@ -3,33 +3,33 @@ module github.com/ivlabs-dev/grafana-aws-cost-explorer-datasource
 go 1.26.10
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.47.5
-	github.com/aws/aws-sdk-go-v2/config v1.32.31
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.30
-	github.com/aws/aws-sdk-go-v2/service/costexplorer v1.67.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.342.0
-	github.com/aws/aws-sdk-go-v2/service/elasticache v1.64.2
-	github.com/aws/aws-sdk-go-v2/service/opensearch v1.86.2
-	github.com/aws/aws-sdk-go-v2/service/rds v1.131.2
-	github.com/aws/aws-sdk-go-v2/service/redshift v1.71.6
-	github.com/aws/aws-sdk-go-v2/service/savingsplans v1.41.0
-	github.com/aws/aws-sdk-go-v2/service/sts v1.45.0
-	github.com/aws/smithy-go v1.28.7
+	github.com/aws/aws-sdk-go-v2 v1.47.8
+	github.com/aws/aws-sdk-go-v2/config v1.33.16
+	github.com/aws/aws-sdk-go-v2/credentials v1.20.16
+	github.com/aws/aws-sdk-go-v2/service/costexplorer v1.74.8
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.344.2
+	github.com/aws/aws-sdk-go-v2/service/elasticache v1.64.5
+	github.com/aws/aws-sdk-go-v2/service/opensearch v1.87.4
+	github.com/aws/aws-sdk-go-v2/service/rds v1.132.2
+	github.com/aws/aws-sdk-go-v2/service/redshift v1.71.9
+	github.com/aws/aws-sdk-go-v2/service/savingsplans v1.41.4
+	github.com/aws/aws-sdk-go-v2/service/sts v1.51.9
+	github.com/aws/smithy-go v1.28.8
 	github.com/grafana/grafana-plugin-sdk-go v0.298.0
 )
 
 require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/apache/arrow-go/v18 v18.8.0 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.31 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.8 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.8 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.32 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.23 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.5.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.33.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.0 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.8 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.11 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.11 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.11 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.24 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.11 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.12.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.39.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.4 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
