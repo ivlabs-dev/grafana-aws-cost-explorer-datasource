@@ -1,0 +1,107 @@
+apiVersion: 1
+
+# Example alert rules for Reservation and Savings Plans expiry. Both use the
+# inventory queries' "alert" format: one value per active commitment (days
+# until expiry), so every Reservation or Savings Plan is its own alert
+# instance. With the default Mock data they fire for one Reservation and one
+# Savings Plan, which makes them a working demo out of the box.
+groups:
+  - orgId: 1
+    name: Commitment expiry
+    folder: AWS Cost Explorer
+    interval: 5m
+    rules:
+      - uid: aws-ce-reservation-expiry
+        title: Reservation expires within 30 days
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: '{{ $labels.service }} reservation {{ $labels.id }} ({{ $labels.instance_type }}, {{ $labels.region }}) expires in {{ humanize $values.B.Value }} days'
+        labels:
+          source: aws-cost-explorer
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: aws-cost-explorer
+            model:
+              refId: A
+              version: 1
+              queryType: reservationInventory
+              format: alert
+              datasource:
+                type: ivlabsdev-awscostexplorer-datasource
+                uid: aws-cost-explorer
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+              datasource:
+                type: __expr__
+                uid: __expr__
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [30]
+              datasource:
+                type: __expr__
+                uid: __expr__
+      - uid: aws-ce-savings-plan-expiry
+        title: Savings Plan expires within 30 days
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: '{{ $labels.type }} Savings Plan {{ $labels.id }} expires in {{ humanize $values.B.Value }} days'
+        labels:
+          source: aws-cost-explorer
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: aws-cost-explorer
+            model:
+              refId: A
+              version: 1
+              queryType: savingsPlansInventory
+              format: alert
+              datasource:
+                type: ivlabsdev-awscostexplorer-datasource
+                uid: aws-cost-explorer
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+              datasource:
+                type: __expr__
+                uid: __expr__
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [30]
+              datasource:
+                type: __expr__
+                uid: __expr__
