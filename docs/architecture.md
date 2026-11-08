@@ -191,6 +191,18 @@ independently. Neither records request objects, filters, tag values, cache keys,
 credential objects, access keys, secret keys, session tokens, external IDs,
 AssumeRole session details, or signed headers.
 
+## Alerting
+
+`plugin.json` sets `"alerting": true`, so Grafana lets the data source be used
+in alert rules. Time-series results work as they are. The inventory query types
+add a `format: "alert"` result: a single `numeric-long` frame whose string
+columns become labels (one alert instance per active commitment) and one
+`days_until_expiry` float column. It reuses the same fetch and cache as the
+table format. Because an alert must never mistake an incomplete list for an
+empty one, any inventory notice (permission denied, failed service or region,
+region-discovery fallback) fails an alert-format Reservation query instead of
+being attached to the frame.
+
 ## Future extension points
 
 The versioned model can be migrated without silently reinterpreting dashboards.

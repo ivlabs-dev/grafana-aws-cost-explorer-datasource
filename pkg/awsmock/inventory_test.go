@@ -117,3 +117,23 @@ func TestResolveCredentialsAlwaysSucceeds(t *testing.T) {
 		t.Fatalf("ResolveCredentials() error = %v, want nil", err)
 	}
 }
+
+func TestMockEC2ReservationsIncludeOneExpiringWithin30Days(t *testing.T) {
+	output, err := EC2Client{}.DescribeReservedInstances(context.Background(), &ec2.DescribeReservedInstancesInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, ri := range output.ReservedInstances {
+		if ri.State != ec2types.ReservedInstanceStateActive || ri.End == nil {
+			continue
+		}
+		days := time.Until(*ri.End).Hours() / 24
+		if days >= 15 && days <= 25 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected an active EC2 reservation ending in roughly 20 days, so the alert format has something to fire on")
+	}
+}

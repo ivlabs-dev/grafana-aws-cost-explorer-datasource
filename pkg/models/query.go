@@ -14,6 +14,9 @@ const (
 
 	FormatTimeSeries = "timeSeries"
 	FormatTable      = "table"
+	// FormatAlert is only valid for inventory queries: it returns one
+	// numeric value per active commitment for Grafana alert rules.
+	FormatAlert = "alert"
 
 	RangeModeDashboard                = "dashboard"
 	RangeModeMonthToDate              = "monthToDate"
@@ -275,8 +278,11 @@ func (q Query) Validate() error {
 	if q.Granularity != GranularityDaily && q.Granularity != GranularityMonthly {
 		return fmt.Errorf("granularity must be DAILY or MONTHLY")
 	}
-	if q.Format != FormatTimeSeries && q.Format != FormatTable {
-		return fmt.Errorf("result format must be timeSeries or table")
+	if q.Format != FormatTimeSeries && q.Format != FormatTable && q.Format != FormatAlert {
+		return fmt.Errorf("result format must be timeSeries, table or alert")
+	}
+	if q.Format == FormatAlert && !q.IsInventoryQuery() {
+		return fmt.Errorf("result format alert is only supported for inventory queries")
 	}
 	switch q.RangeMode {
 	case "", RangeModeDashboard, RangeModeMonthToDate, RangeModePreviousEquivalentPeriod:

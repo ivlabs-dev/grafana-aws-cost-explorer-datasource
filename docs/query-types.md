@@ -109,8 +109,9 @@ other query type this plugin supports in one important way: **they reflect
 current state and ignore the dashboard's selected time range entirely.**
 "What Reservations do I have right now" isn't a question with a meaningful
 historical answer the way "what did I spend last month" is, so there's no
-Granularity, Format, or filter control to set — the query editor shows only
-the query type selector and a reminder of this behavior.
+Granularity or filter control to set — the query editor shows the query type
+selector, the **All regions** switch (Reservations only), a **Format** selector
+(Table, or Alert for [alerting](#alerting)), and a reminder of this behavior.
 
 - **Savings Plans inventory** calls the AWS Savings Plans service's
   `DescribeSavingsPlans` (a different AWS service/API from Cost Explorer
@@ -127,8 +128,8 @@ the query type selector and a reminder of this behavior.
   than trusted as a literal AWS field.
 - Both tables sort by days-until-expiry ascending, so anything expiring soon
   surfaces first — intended to make it easy to spot a Reservation or Savings
-  Plan that needs renewing before it lapses. (Alerting on this threshold is
-  on the [Roadmap](../README.md#roadmap), not built yet.)
+  Plan that needs renewing before it lapses. To be notified instead, see
+  [Alerting](#alerting).
 - The five Reservation inventory permissions are independent of each other.
   A service whose IAM permission wasn't granted is excluded from the merged
   list with an **Info** notice naming it and the specific action to grant,
@@ -241,3 +242,63 @@ Finally, two table panels, **Reservations** and **Savings Plans**, list what
 the account currently owns (see [Reservation and Savings Plans
 inventory](#reservation-and-savings-plans-inventory) above) — unlike every
 other panel on this dashboard, these ignore the selected time range.
+
+## Alerting
+
+The plugin declares itself alerting-capable, so its queries can be used in
+Grafana alert rules. Grafana Alerting evaluates the rule and sends the
+notification; the plugin itself sends nothing. (Changing `plugin.json` to
+enable this needs a Grafana restart.)
+
+### Expiring Reservations and Savings Plans
+
+Set a **Reservation inventory** or **Savings Plans inventory** query's
+**Format** to **Alert (days until expiry)**. It returns one number per
+_active_ commitment, so each Reservation or Savings Plan is its own alert
+instance and the notification names it.
+
+1. Create an alert rule and choose this data source.
+2. Query A: query type _Reservation inventory_ (or _Savings Plans
+   inventory_), Format _Alert_.
+3. Add a **Reduce** expression (function _Last_) on A, then a **Threshold**
+   expression, for example _is below 30_.
+4. Set the evaluation interval and pending period as usual.
+
+Details:
+
+- **Labels.** Reservations carry `service`, `region`, `id`, and
+  `instance_type`. Savings Plans carry `id`, `type`, `region`, and
+  `payment_option` (`region` is empty for plans that apply to all regions).
+- **Value.** `days_until_expiry` is fractional days (36 hours is 1.5), and is
+  negative once an active item is past its end date.
+- **Only active items.** Retired, payment-failed, and payment-pending items,
+  and items whose end date is unknown, are not returned, so they never alert.
+- **Incomplete data fails the query.** In table format, a denied or failed
+  service or region is only a notice. An alert rule would read that as
+  "nothing is expiring", so in Alert format any such notice makes the whole
+  query fail and the rule goes to its **Error** state. In practice: grant
+  all five reservation `Describe` permissions, grant `ec2:DescribeRegions`
+  or turn **All regions** off, and fix any region blocked by an SCP.
+  If an SCP blocks regions you cannot change, All regions would fail the rule
+  on every evaluation. Instead, create one data source per allowed region
+  with **All regions** off, and one alert rule for each.
+- **No commitments.** If nothing is active, the query returns no rows, which
+  Grafana reports as **NoData**; map NoData to OK, Alerting, or NoData in the
+  rule.
+- **Caching.** A dashboard and an alert rule share one cached inventory fetch
+  when they use the same **All regions** setting (the all-regions and
+  configured-region-only results are cached separately), so a short evaluation
+  interval does not add AWS calls beyond the cache TTL.
+
+### Utilization, coverage, and cost
+
+The time-series formats of the Cost and usage, Utilization, and Coverage query
+types also work in alert rules, for example "utilization below 80%" or "daily
+cost for a service above a threshold". Cost Explorer data lags by about a
+day, so a rule evaluates the last completed period: use a range such as
+`now-7d` and a pending period of a day or more. Table format cannot be
+alerted on.
+
+Not yet available as alerts: month-to-date and change-vs-previous-period
+spend, payment-failed or payment-pending commitments, and a "count expiring
+within N days" summary. See the [Roadmap](../README.md#roadmap).
