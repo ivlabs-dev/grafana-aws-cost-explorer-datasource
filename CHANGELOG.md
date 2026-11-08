@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- New plugin logo (a cost chart with a magnifier over a dollar coin), shown in
+  the Grafana data source lists and the plugin catalog once released. It
+  replaces `src/img/logo.svg` (a 4 KB vector), so `plugin.json` is unchanged.
 - Alerting on Reservation and Savings Plans expiry. The plugin now declares
   `"alerting": true` (so **Grafana must be restarted** after upgrading), and
   the Reservation and Savings Plans inventory queries gain an **Alert (days
