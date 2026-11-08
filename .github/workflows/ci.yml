@@ -159,9 +159,27 @@ jobs:
           ARCHIVE: ${{ steps.metadata.outputs.archive }}
 
       - name: Scan dependencies for known vulnerabilities
-        run: npx -y @grafana/plugin-validator@latest -analyzer=osv-scanner -sourceCodeUri file://./ ${ARCHIVE}
+        # `npx @grafana/plugin-validator` downloads its binary from the anonymous
+        # github.com release URL, which has returned persistent 504s while the
+        # authenticated releases API keeps working. Fetch the same release
+        # (the version npm publishes as `latest`) through the API instead.
+        run: |
+          version=$(npm view @grafana/plugin-validator version)
+          asset="plugin-validator_${version}_linux_amd64.tar.gz"
+          validator_dir="${RUNNER_TEMP}/plugin-validator"
+          mkdir -p "${validator_dir}"
+          for attempt in 1 2 3; do
+            gh release download "plugin-validator/v${version}" \
+              --repo grafana/plugin-validator --pattern "${asset}" \
+              --dir "${validator_dir}" --clobber && break
+            [ "${attempt}" -lt 3 ] || exit 1
+            sleep $((attempt * 10))
+          done
+          tar -xzf "${validator_dir}/${asset}" -C "${validator_dir}"
+          "${validator_dir}/plugincheck2" -analyzer=osv-scanner -sourceCodeUri file://./ "${ARCHIVE}"
         env:
           ARCHIVE: ${{ steps.metadata.outputs.archive }}
+          GH_TOKEN: ${{ github.token }}
 
       - name: Archive Build
         uses: actions/upload-artifact@v7
