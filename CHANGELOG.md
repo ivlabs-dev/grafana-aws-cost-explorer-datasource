@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Alerting on Reservation and Savings Plans expiry. The plugin now declares
+  `"alerting": true` (so **Grafana must be restarted** after upgrading), and
+  the Reservation and Savings Plans inventory queries gain an **Alert (days
+  until expiry)** format: one number per active commitment, labelled so each
+  Reservation or Savings Plan is its own alert instance. In this format a
+  service or region that can't be read fails the query instead of being
+  skipped with a notice, so an incomplete list never looks like nothing is
+  expiring. The default Table format is unchanged. The mock data now includes
+  a reservation expiring within 30 days. See
+  [Alerting](docs/query-types.md#alerting).
 - Reservation inventory can now list reservations from every region enabled
   for the account, not just the data source's configured region. A new
   **All regions** toggle in the query editor (on by default) controls it;

@@ -52,6 +52,13 @@ export const FORMAT_OPTIONS: Array<ComboboxOption<ResultFormat>> = [
   { label: 'Table', value: 'table' },
 ];
 
+// Inventory queries have no time series; 'timeSeries' (the default carried by
+// saved queries) is displayed as Table, which is how the backend treats it.
+export const INVENTORY_FORMAT_OPTIONS: Array<ComboboxOption<ResultFormat>> = [
+  { label: 'Table', value: 'table' },
+  { label: 'Alert (days until expiry)', value: 'alert' },
+];
+
 export const TOP_N_OPTIONS: Array<ComboboxOption<TopN>> = [
   { label: 'All', value: 0 },
   { label: 'Top 5', value: 5 },

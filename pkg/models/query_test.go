@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -516,5 +517,46 @@ func TestAllRegionsIsAcceptedOnInventoryQueries(t *testing.T) {
 	query.ApplyDefaults()
 	if err := query.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}
+
+func TestAlertFormatIsAcceptedOnlyForInventoryQueries(t *testing.T) {
+	tests := []struct {
+		queryType string
+		wantErr   bool
+	}{
+		{QueryTypeReservationInventory, false},
+		{QueryTypeSavingsPlansInventory, false},
+		{QueryTypeCostAndUsage, true},
+		{QueryTypeReservationUtilization, true},
+		{QueryTypeSavingsPlansUtilization, true},
+		{QueryTypeReservationCoverage, true},
+		{QueryTypeSavingsPlansCoverage, true},
+	}
+	for _, test := range tests {
+		t.Run(test.queryType, func(t *testing.T) {
+			q := Query{Version: QueryVersion, QueryType: test.queryType, Format: FormatAlert}
+			q.ApplyDefaults()
+			err := q.Validate()
+			if (err != nil) != test.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, test.wantErr)
+			}
+			if err != nil && !strings.Contains(err.Error(), "alert") {
+				t.Fatalf("error %q should mention alert", err)
+			}
+		})
+	}
+}
+
+func TestInventoryQueryDefaultFormatStillValidates(t *testing.T) {
+	for _, queryType := range []string{QueryTypeReservationInventory, QueryTypeSavingsPlansInventory} {
+		q := Query{Version: QueryVersion, QueryType: queryType}
+		q.ApplyDefaults()
+		if q.Format != FormatTimeSeries {
+			t.Fatalf("%s default format = %q, want %q", queryType, q.Format, FormatTimeSeries)
+		}
+		if err := q.Validate(); err != nil {
+			t.Fatalf("%s: Validate() = %v", queryType, err)
+		}
 	}
 }

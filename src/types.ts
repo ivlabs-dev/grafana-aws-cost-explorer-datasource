@@ -14,7 +14,9 @@ export type GroupBy =
   | 'USAGE_TYPE'
   | 'OPERATION'
   | 'AVAILABILITY_ZONE';
-export type ResultFormat = 'timeSeries' | 'table';
+// 'alert' is only valid for the two inventory query types: one numeric value
+// per active commitment, for Grafana alert rules.
+export type ResultFormat = 'timeSeries' | 'table' | 'alert';
 // Top 1 is reserved for provisioned/internal queries such as the highest-cost
 // service KPI. The visual query editor intentionally offers only 0/5/10/20.
 export type TopN = 0 | 1 | 5 | 10 | 20;

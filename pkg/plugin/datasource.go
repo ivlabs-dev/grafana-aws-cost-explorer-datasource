@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	awscostexplorer "github.com/aws/aws-sdk-go-v2/service/costexplorer"
@@ -153,7 +154,7 @@ func (d *Datasource) query(ctx context.Context, query backend.DataQuery) backend
 	case models.QueryTypeReservationInventory:
 		return d.queryReservationInventory(ctx, query, model, started, logger)
 	case models.QueryTypeSavingsPlansInventory:
-		return d.querySavingsPlansInventory(ctx, query, started, logger)
+		return d.querySavingsPlansInventory(ctx, query, model, started, logger)
 	}
 
 	resolved, err := models.ResolveCostExplorerDateRange(
@@ -702,7 +703,20 @@ func (d *Datasource) queryReservationInventory(
 		return backend.ErrDataResponse(status, err.Error())
 	}
 
-	resultFrames := frames.ConvertReservationInventory(execution.Items, execution.Notices)
+	var resultFrames data.Frames
+	if model.Format == models.FormatAlert {
+		// An alert rule must never read an incomplete list as "nothing is
+		// expiring", so any notice (denied permission, failed service or
+		// region, region-discovery fallback) fails the query instead.
+		if len(execution.Notices) > 0 {
+			fields := append(metadata.LogFields(), "error_category", "reservation_inventory_incomplete_for_alert")
+			logger.Warn("Reservation inventory is incomplete; failing alert-format query", fields...)
+			return backend.ErrDataResponse(backend.StatusBadGateway, incompleteInventoryMessage(execution.Notices))
+		}
+		resultFrames = frames.ConvertReservationInventoryAlert(execution.Items)
+	} else {
+		resultFrames = frames.ConvertReservationInventory(execution.Items, execution.Notices)
+	}
 	for _, frame := range resultFrames {
 		frame.RefID = query.RefID
 	}
@@ -716,6 +730,7 @@ func (d *Datasource) queryReservationInventory(
 func (d *Datasource) querySavingsPlansInventory(
 	ctx context.Context,
 	query backend.DataQuery,
+	model models.Query,
 	started time.Time,
 	logger log.Logger,
 ) backend.DataResponse {
@@ -740,7 +755,12 @@ func (d *Datasource) querySavingsPlansInventory(
 		return backend.ErrDataResponse(status, err.Error())
 	}
 
-	resultFrames := frames.ConvertSavingsPlansInventory(execution.Plans)
+	var resultFrames data.Frames
+	if model.Format == models.FormatAlert {
+		resultFrames = frames.ConvertSavingsPlansInventoryAlert(execution.Plans)
+	} else {
+		resultFrames = frames.ConvertSavingsPlansInventory(execution.Plans)
+	}
 	for _, frame := range resultFrames {
 		frame.RefID = query.RefID
 	}
@@ -749,6 +769,16 @@ func (d *Datasource) querySavingsPlansInventory(
 	fields := append(metadata.LogFields(), "frame_count", len(resultFrames))
 	logger.Info("Savings Plans inventory query completed", fields...)
 	return backend.DataResponse{Status: backend.StatusOK, Frames: resultFrames}
+}
+
+// incompleteInventoryMessage explains why an alert-format Reservation
+// inventory query failed, naming every missing service or region.
+func incompleteInventoryMessage(notices []data.Notice) string {
+	texts := make([]string, 0, len(notices))
+	for _, notice := range notices {
+		texts = append(texts, notice.Text)
+	}
+	return "reservation inventory is incomplete, so it cannot be used for alerting: " + strings.Join(texts, "; ")
 }
 
 // reservationInventoryMetadataExecution and savingsPlansInventoryMetadataExecution

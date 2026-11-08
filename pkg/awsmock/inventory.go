@@ -99,6 +99,7 @@ func (c EC2Client) DescribeReservedInstances(
 	}
 	start1, end1 := daysFromNow(-200), daysFromNow(165)
 	start2, end2 := daysFromNow(-500), daysFromNow(-135)
+	start3, end3 := daysFromNow(-345), daysFromNow(20)
 	return &ec2.DescribeReservedInstancesOutput{
 		ReservedInstances: []ec2types.ReservedInstances{
 			{
@@ -118,6 +119,16 @@ func (c EC2Client) DescribeReservedInstances(
 				State:               ec2types.ReservedInstanceStateRetired,
 				Start:               &start2,
 				End:                 &end2,
+			},
+			{
+				// Expiring within 30 days, so the alert format has an item to fire on.
+				ReservedInstancesId: aws.String("ri-mock-expiring-soon"),
+				InstanceType:        ec2types.InstanceTypeT3Large,
+				InstanceCount:       aws.Int32(3),
+				OfferingType:        ec2types.OfferingTypeValuesNoUpfront,
+				State:               ec2types.ReservedInstanceStateActive,
+				Start:               &start3,
+				End:                 &end3,
 			},
 		},
 	}, nil

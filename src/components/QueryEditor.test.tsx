@@ -429,4 +429,70 @@ describe('QueryEditor', () => {
 
     expect(screen.getByLabelText('Include incomplete current period')).toBeInTheDocument();
   });
+  describe('inventory alert format', () => {
+    it.each(['reservationInventory', 'savingsPlansInventory'] as const)(
+      'shows a Format selector for %s',
+      (queryType) => {
+        renderEditor({ ...DEFAULT_QUERY, queryType });
+
+        expect(screen.getByLabelText('Format')).toBeInTheDocument();
+      }
+    );
+
+    it.each(['costAndUsage', 'reservationUtilization', 'savingsPlansCoverage'] as const)(
+      'does not show the inventory Format selector for %s',
+      (queryType) => {
+        renderEditor({ ...DEFAULT_QUERY, queryType });
+
+        expect(screen.queryByLabelText('Format')).not.toBeInTheDocument();
+      }
+    );
+
+    it('treats a saved inventory query without an alert format as Table', () => {
+      renderEditor({ ...DEFAULT_QUERY, queryType: 'savingsPlansInventory', format: 'timeSeries' });
+
+      expect(screen.getByLabelText('Format')).toHaveValue('table');
+    });
+
+    it('selecting Alert updates the query format to alert', () => {
+      const view = renderEditor({ ...DEFAULT_QUERY, queryType: 'reservationInventory' });
+
+      fireEvent.change(screen.getByLabelText('Format'), { target: { value: 'alert' } });
+
+      expect(view.onChange).toHaveBeenLastCalledWith(expect.objectContaining({ format: 'alert' }));
+    });
+
+    it('shows the alert explanation only when the format is alert', () => {
+      const { rerender, onChange, onRunQuery, datasource } = renderEditor({
+        ...DEFAULT_QUERY,
+        queryType: 'reservationInventory',
+      });
+      expect(screen.queryByText(/one number per active commitment/i)).not.toBeInTheDocument();
+
+      rerender(
+        <QueryEditor
+          query={{ ...DEFAULT_QUERY, queryType: 'reservationInventory', format: 'alert' }}
+          onChange={onChange}
+          onRunQuery={onRunQuery}
+          datasource={datasource as never}
+          data={{} as never}
+          range={{} as never}
+        />
+      );
+
+      expect(screen.getByText(/one number per active commitment/i)).toBeInTheDocument();
+      expect(screen.getByText(/Threshold expression/i)).toBeInTheDocument();
+      expect(screen.getByText(/fails the query/i)).toBeInTheDocument();
+    });
+
+    it('resets an alert format when switching to a non-inventory query type', () => {
+      const view = renderEditor({ ...DEFAULT_QUERY, queryType: 'savingsPlansInventory', format: 'alert' });
+
+      fireEvent.change(screen.getByLabelText('Query type'), { target: { value: 'costAndUsage' } });
+
+      expect(view.onChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ queryType: 'costAndUsage', format: 'timeSeries' })
+      );
+    });
+  });
 });

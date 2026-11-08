@@ -528,8 +528,10 @@ values.
 - no "Potential monthly savings" figure for coverage -- AWS's own Coverage
   report sources that from the purchase recommendation APIs, which this
   plugin doesn't integrate with yet
-- no alerting on Reservation/Savings Plans expiry yet -- the inventory query
-  types expose a days-until-expiry field for this, but no alert rule uses it
+- alerting covers Reservation/Savings Plans expiry (the inventory **Alert**
+  format) and the time-series utilization, coverage, and cost queries; there
+  are no month-to-date, payment-state, or "count expiring soon" alert queries
+  yet -- see [Alerting](docs/query-types.md#alerting)
 - no CUR, Athena, forecasts, budgets, anomalies, purchase recommendations, or
   Organizations discovery
 - no hosted service, reports, notifications, billing, subscriptions, or user
@@ -537,9 +539,11 @@ values.
 
 ## Roadmap
 
-Near-term priorities are alerting on Reservation/Savings Plans expiry (using
-the inventory query types' days-until-expiry field), purchase-recommendation integration to power a "Potential monthly
-savings" figure for coverage, and stronger dashboard and plugin-e2e coverage.
+Near-term priorities are purchase-recommendation integration to power a
+"Potential monthly savings" figure for coverage, more alert queries
+(month-to-date and change-vs-previous-period spend, payment-failed or
+payment-pending commitments, and a "count expiring within N days" summary),
+and stronger dashboard and plugin-e2e coverage.
 Later open-source extensions may add cost forecasting, cost categories,
 optional distributed caching, and coverage/utilization grouping (e.g. by
 subscription or by service). CUR/Athena and any managed FinOps service will

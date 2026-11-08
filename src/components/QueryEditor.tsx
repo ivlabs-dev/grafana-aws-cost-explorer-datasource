@@ -6,6 +6,7 @@ import {
   FORMAT_OPTIONS,
   GRANULARITY_OPTIONS,
   GROUP_OPTIONS,
+  INVENTORY_FORMAT_OPTIONS,
   METRIC_OPTIONS,
   QUERY_TYPE_OPTIONS,
   RESERVATION_COVERAGE_METRIC_OPTIONS,
@@ -100,6 +101,11 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
           : {},
       groupBySubscription: false,
       utilizationMetric: defaultUtilizationMetricFor(value),
+      // The alert format only exists for inventory query types.
+      format:
+        model.format === 'alert' && value !== 'reservationInventory' && value !== 'savingsPlansInventory'
+          ? 'timeSeries'
+          : model.format,
     });
   };
 
@@ -389,6 +395,31 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
             onChange={(event: ChangeEvent<HTMLInputElement>) => update({ allRegions: event.currentTarget.checked })}
           />
         </InlineField>
+      )}
+
+      {isInventory && (
+        <InlineField
+          label="Format"
+          labelWidth={18}
+          htmlFor="query-inventory-format"
+          tooltip="Table lists what you own. Alert returns one number per active commitment (days until expiry) for use in Grafana alert rules."
+        >
+          <Combobox<ResultFormat>
+            id="query-inventory-format"
+            options={INVENTORY_FORMAT_OPTIONS}
+            value={model.format === 'alert' ? 'alert' : 'table'}
+            width={32}
+            onChange={(value) => update({ format: value.value })}
+          />
+        </InlineField>
+      )}
+
+      {isInventory && model.format === 'alert' && (
+        <Alert title="Alert format returns one value per active commitment" severity="info">
+          Returns one number per active commitment: its days until expiry. Use it in an alert rule with a Reduce and a
+          Threshold expression (for example, below 30). A service or region that cannot be read fails the query instead
+          of returning a partial list, so a missing permission never looks like nothing is expiring.
+        </Alert>
       )}
 
       {isInventory && (

@@ -5,6 +5,7 @@
   "id": "ivlabsdev-awscostexplorer-datasource",
   "metrics": true,
   "backend": true,
+  "alerting": true,
   "state": "beta",
   "executable": "gpx_aws_cost_explorer",
   "info": {
