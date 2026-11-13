@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- All requests to AWS (STS AssumeRole, Cost Explorer, Savings Plans and the
+  Reservation clients, including the per-region ones) now go through the
+  Grafana plugin SDK HTTP client instead of the AWS SDK default client, so
+  Grafana's HTTP middlewares, including the configured response size limit,
+  apply to them. TLS trust for AWS calls now comes from the data source's HTTP
+  settings rather than `AWS_CA_BUNDLE`. This is a backend-only change; `plugin.json` is unchanged.
+
 ## 1.2.0 (2026-11-08)
 
 - The local `docker compose` environment now provisions the data source in

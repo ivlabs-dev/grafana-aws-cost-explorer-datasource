@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -22,6 +23,8 @@ import (
 type fakeFactory struct {
 	client     awsclient.CostExplorerAPI
 	resolveErr error
+	// gotHTTPClient, when set, receives the HTTP client passed to New.
+	gotHTTPClient **http.Client
 
 	savingsPlans            awsclient.SavingsPlansAPI
 	ec2Reservations         awsclient.EC2ReservedInstancesAPI
@@ -31,7 +34,10 @@ type fakeFactory struct {
 	openSearchReservations  awsclient.OpenSearchReservedInstancesAPI
 }
 
-func (f fakeFactory) New(context.Context, models.PluginSettings) (*awsclient.Bundle, error) {
+func (f fakeFactory) New(_ context.Context, _ models.PluginSettings, httpClient *http.Client) (*awsclient.Bundle, error) {
+	if f.gotHTTPClient != nil {
+		*f.gotHTTPClient = httpClient
+	}
 	return &awsclient.Bundle{
 		CostExplorer:            f.client,
 		SavingsPlans:            f.savingsPlans,
@@ -239,6 +245,25 @@ func TestCheckHealthResolvesCredentialsAndQueriesCostExplorer(t *testing.T) {
 	}
 	if result.Status != backend.HealthStatusOk {
 		t.Fatalf("health status = %s, message = %s", result.Status, result.Message)
+	}
+}
+
+func TestNewDatasourcePassesSDKHTTPClientToFactory(t *testing.T) {
+	var got *http.Client
+	datasource := newDatasource(
+		context.Background(),
+		validInstanceSettings(),
+		fakeFactory{client: fakeClient{}, gotHTTPClient: &got},
+		log.NewNullLogger(),
+	)
+	if datasource.initializationErr != nil {
+		t.Fatalf("initializationErr = %v", datasource.initializationErr)
+	}
+	if got == nil {
+		t.Fatal("factory did not receive an HTTP client")
+	}
+	if got == http.DefaultClient {
+		t.Fatal("factory received http.DefaultClient, want the Grafana SDK HTTP client")
 	}
 }
 

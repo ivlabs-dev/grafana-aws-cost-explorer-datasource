@@ -10,6 +10,7 @@ import (
 
 	awscostexplorer "github.com/aws/aws-sdk-go-v2/service/costexplorer"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/resource/httpadapter"
@@ -86,7 +87,21 @@ func newDatasource(
 		return datasource
 	}
 
-	bundle, err := factory.New(ctx, *settings)
+	// AWS requests must use the Grafana plugin SDK HTTP client so Grafana's
+	// default middlewares (e.g. the response size limit) and the instance's
+	// HTTP settings apply.
+	httpOptions, err := source.HTTPClientOptions(ctx)
+	if err != nil {
+		datasource.initializationErr = fmt.Errorf("load HTTP client options: %w", err)
+		return datasource
+	}
+	httpClient, err := httpclient.New(httpOptions)
+	if err != nil {
+		datasource.initializationErr = fmt.Errorf("create HTTP client: %w", err)
+		return datasource
+	}
+
+	bundle, err := factory.New(ctx, *settings, httpClient)
 	if err != nil {
 		datasource.initializationErr = err
 		return datasource
