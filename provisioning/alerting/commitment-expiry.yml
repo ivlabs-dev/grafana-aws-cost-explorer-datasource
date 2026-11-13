@@ -18,7 +18,7 @@ groups:
         noDataState: OK
         execErrState: Error
         annotations:
-          summary: '{{ $labels.service }} reservation {{ $labels.id }} ({{ $labels.instance_type }}, {{ $labels.region }}) expires in {{ humanize $values.B.Value }} days'
+          summary: '{{ $labels.service }} reservation {{ $labels.id }} ({{ $labels.instance_type }}, {{ $labels.region }}) expires in {{ if $values.B }}{{ humanize $values.B.Value }}{{ else }}an unknown number of{{ end }} days'
         labels:
           source: aws-cost-explorer
         data:
@@ -65,7 +65,7 @@ groups:
         noDataState: OK
         execErrState: Error
         annotations:
-          summary: '{{ $labels.type }} Savings Plan {{ $labels.id }} expires in {{ humanize $values.B.Value }} days'
+          summary: '{{ $labels.type }} Savings Plan {{ $labels.id }} expires in {{ if $values.B }}{{ humanize $values.B.Value }}{{ else }}an unknown number of{{ end }} days'
         labels:
           source: aws-cost-explorer
         data:

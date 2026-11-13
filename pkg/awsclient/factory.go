@@ -3,6 +3,7 @@ package awsclient
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -51,7 +52,7 @@ type Bundle struct {
 }
 
 type Factory interface {
-	New(context.Context, models.PluginSettings) (*Bundle, error)
+	New(context.Context, models.PluginSettings, *http.Client) (*Bundle, error)
 }
 
 type SDKFactory struct{}
@@ -60,7 +61,11 @@ func NewFactory() *SDKFactory {
 	return &SDKFactory{}
 }
 
-func (f *SDKFactory) New(ctx context.Context, settings models.PluginSettings) (*Bundle, error) {
+// New builds the AWS clients. httpClient must be the Grafana plugin SDK HTTP
+// client (httpclient.New) so every AWS request, including STS and the
+// per-region clients, goes through Grafana's HTTP middlewares. It is unused in
+// mock mode.
+func (f *SDKFactory) New(ctx context.Context, settings models.PluginSettings, httpClient *http.Client) (*Bundle, error) {
 	settings.ApplyDefaults()
 	if err := settings.Validate(); err != nil {
 		return nil, err
@@ -107,6 +112,13 @@ func (f *SDKFactory) New(ctx context.Context, settings models.PluginSettings) (*
 	if err != nil {
 		return nil, fmt.Errorf("load AWS configuration: %w", err)
 	}
+	// Install the Grafana SDK HTTP client after loading rather than through
+	// config.WithHTTPClient: with AWS_CA_BUNDLE (or a profile ca_bundle) set,
+	// LoadDefaultConfig refuses any client that is not the SDK's own
+	// BuildableClient. TLS trust for AWS calls now comes from the Grafana
+	// instance's HTTP settings. STS, service and regional clients all derive
+	// from this config, so they all use the client.
+	awsConfig.HTTPClient = httpClient
 
 	if settings.AuthMode == models.AuthModeAssumeRole {
 		provider := stscreds.NewAssumeRoleProvider(
