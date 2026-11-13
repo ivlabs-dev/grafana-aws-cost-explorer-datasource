@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.1 (2026-11-13)
 
 - Security: raise the Go toolchain to 1.26.11 (in `go.mod` and the release
   workflow), resolving the `net/http` vulnerability GO-2026-6859 that
