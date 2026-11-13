@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Security: raise the Go toolchain to 1.26.11 (in `go.mod` and the release
+  workflow), resolving the `net/http` vulnerability GO-2026-6859 that
+  `govulncheck` reports against 1.26.10.
 - All requests to AWS (STS AssumeRole, Cost Explorer, Savings Plans and the
   Reservation clients, including the per-region ones) now go through the
   Grafana plugin SDK HTTP client instead of the AWS SDK default client, so
